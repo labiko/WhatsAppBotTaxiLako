@@ -1,0 +1,38 @@
+# Variables d'environnement avec secrets
+.env
+.env.local
+.env.production
+
+# Fichiers avec clés hardcodées (ne pas committer)
+*_with_secrets.js
+*_production.js
+*secrets*
+
+# Logs Supabase locaux
+.supabase/
+supabase/logs/
+
+# Node modules
+node_modules/
+package-lock.json
+
+# Fichiers temporaires
+*.tmp
+*.log
+nul
+
+# Fichiers backup avec potentiels secrets
+*backup*.ts
+*backup*.js
+*_old.js
+*_old.ts
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/settings.json
+.idea/

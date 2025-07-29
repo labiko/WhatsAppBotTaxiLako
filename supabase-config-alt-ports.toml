@@ -1,0 +1,49 @@
+# Configuration Supabase avec ports alternatifs
+# Utilisez cette config si les ports par défaut sont bloqués
+
+project_id = "lokotaxi"
+
+[api]
+# Port alternatif pour l'API (au lieu de 54321)
+port = 64321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+# Port alternatif pour la base de données (au lieu de 54322)
+port = 64322
+major_version = 15
+
+[studio]
+# Port alternatif pour Supabase Studio (au lieu de 54323)
+port = 64323
+
+[inbucket]
+# Ports alternatifs pour le serveur email
+port = 64324
+smtp_port = 64325
+pop3_port = 64326
+
+[storage]
+file_size_limit = "50MiB"
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[auth.sms]
+enable_signup = true
+enable_confirmations = false
+
+[analytics]
+enabled = false
+port = 64327
+vector_port = 64328

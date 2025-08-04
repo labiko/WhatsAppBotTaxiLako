@@ -1,0 +1,77 @@
+/*
+REQUÊTE OVERPASS TURBO COMPLÈTE POUR CONAKRY
+À copier-coller dans overpass-turbo.eu
+*/
+
+[out:json][timeout:300][maxsize:50000000];
+(
+  // Récupérer TOUS les nodes avec des tags dans la bbox Conakry
+  node
+    ["name"]
+    (9.35,-13.85,9.75,-13.45);
+  node
+    ["amenity"]
+    (9.35,-13.85,9.75,-13.45);
+  node
+    ["shop"]
+    (9.35,-13.85,9.75,-13.45);
+  node
+    ["tourism"]
+    (9.35,-13.85,9.75,-13.45);
+  node
+    ["leisure"]
+    (9.35,-13.85,9.75,-13.45);
+  node
+    ["healthcare"]
+    (9.35,-13.85,9.75,-13.45);
+  node
+    ["office"]
+    (9.35,-13.85,9.75,-13.45);
+  node
+    ["building"]
+    (9.35,-13.85,9.75,-13.45);
+  
+  // Récupérer tous les ways (polygones/lignes) avec des tags
+  way
+    ["name"]
+    (9.35,-13.85,9.75,-13.45);
+  way
+    ["amenity"]
+    (9.35,-13.85,9.75,-13.45);
+  way
+    ["shop"]
+    (9.35,-13.85,9.75,-13.45);
+  way
+    ["tourism"]
+    (9.35,-13.85,9.75,-13.45);
+  way
+    ["leisure"]
+    (9.35,-13.85,9.75,-13.45);
+  way
+    ["building"]
+    (9.35,-13.85,9.75,-13.45);
+    
+  // Relations importantes
+  relation
+    ["name"]
+    (9.35,-13.85,9.75,-13.45);
+);
+out geom;
+
+/*
+INSTRUCTIONS :
+1. Aller sur overpass-turbo.eu
+2. Coller cette requête dans l'éditeur
+3. Cliquer "Exécuter" 
+4. Attendre 2-3 minutes (requête volumineuse)
+5. Cliquer "Exporter" → "Télécharger/copier raw data" → "raw data directly from Overpass API"
+6. Sauvegarder comme : conakry_overpass_complete.json
+
+BBOX CONAKRY ÉTENDUE :
+- Sud: 9.35° N (plus au sud que précédent 9.45°)
+- Ouest: -13.85° E (plus à l'ouest que précédent -13.75°) 
+- Nord: 9.75° N (inchangé)
+- Est: -13.45° E (inchangé)
+
+Cette requête devrait récupérer 50,000+ éléments au lieu des 25,000 précédents.
+*/

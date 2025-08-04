@@ -861,29 +861,59 @@ async function searchAdressePartial(keyword: string): Promise<any[]> {
 
 async function searchAdresse(searchTerm: string): Promise<any> {
   try {
-    console.log(`🔍 Recherche adresse: "${searchTerm}"`);
+    console.log(`🔍 RECHERCHE INTELLIGENTE: "${searchTerm}"`);
     
-    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${workingApiKey}`,
-        'apikey': workingApiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ search_term: searchTerm })
-    });
+    // Import du service de recherche intelligent
+    const { searchLocation } = await import('./search-service.ts');
     
-    if (!response.ok) {
-      console.error(`❌ Erreur recherche adresse: ${response.status}`);
-      return null;
+    // Utiliser le nouveau service de recherche
+    const result = await searchLocation(searchTerm, SUPABASE_URL, workingApiKey);
+    
+    if (result) {
+      // Log détaillé avec source de la recherche
+      const sourceInfo = result.source ? ` (Source: ${result.source})` : '';
+      const scoreInfo = result.score ? ` [Score: ${result.score}]` : '';
+      console.log(`📍 RECHERCHE INTELLIGENTE - Trouvé: ${result.nom}${sourceInfo}${scoreInfo}`);
+      
+      // Log spécifique selon la source
+      if (result.source?.startsWith('database_')) {
+        console.log(`💾 RECHERCHE DATABASE - Stratégie: ${result.source.replace('database_', '')}`);
+      } else if (result.source === 'google_places') {
+        console.log(`🌐 RECHERCHE GOOGLE PLACES - API externe utilisée`);
+      }
+      
+      return result;
     }
     
-    const adresses = await response.json();
-    console.log(`📍 ${adresses.length} adresse(s) trouvée(s)`);
-    
-    return adresses.length > 0 ? adresses[0] : null;
+    console.log(`❌ RECHERCHE INTELLIGENTE - Aucun résultat pour: "${searchTerm}"`);
+    return null;
   } catch (error) {
-    console.error(`❌ Exception recherche adresse: ${error.message}`);
+    console.error(`❌ Exception recherche intelligente: ${error.message}`);
+    // Fallback vers l'ancienne méthode en cas d'erreur
+    try {
+      const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ search_term: searchTerm })
+      });
+      
+      if (response.ok) {
+        const adresses = await response.json();
+        if (adresses.length > 0) {
+          console.log(`🔄 FALLBACK SQL - Trouvé: ${adresses[0].nom} (Source: database_sql_fallback)`);
+          return adresses[0];
+        } else {
+          console.log(`❌ FALLBACK SQL - Aucun résultat pour: "${searchTerm}"`);
+        }
+        return null;
+      }
+    } catch (fallbackError) {
+      console.error(`❌ Fallback aussi échoué: ${fallbackError.message}`);
+    }
     return null;
   }
 }

@@ -88,6 +88,10 @@ const SUPABASE_URL = 'https://nmwnibzgvwltipmtwhzo.supabase.co';
 const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5td25pYnpndndsdGlwbXR3aHpvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MzE4NjkwMywiZXhwIjoyMDY4NzYyOTAzfQ._TeinxeQLZKSowSCUswDR54WejQp1c9y_tkn6MLYh_M';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5td25pYnpndndsdGlwbXR3aHpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxODY5MDMsImV4cCI6MjA2ODc2MjkwM30.cmOT0pwKr0T7DyR7FjF9lr2Aea3A3OfOytEfhi0GQ4U';
 
+// Variables Google Places API (fallback recherche)
+const GOOGLE_PLACES_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY') || '';
+const GOOGLE_PLACES_URL = 'https://maps.googleapis.com/maps/api/place/textsearch/json';
+
 // Configuration IA Audio (préparation Phase 2)
 const AI_AUDIO_ENABLED = Deno.env.get('AI_AUDIO_ENABLED') === 'true';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
@@ -283,10 +287,10 @@ async function saveSession(phone: string, data: any): Promise<void> {
       vehicle_type: data.vehicleType || null,
       position_client: data.positionClient || null,
       destination_nom: data.destinationNom || null,
-      destination_id: data.destinationId || null,
+      destination_id: (data.destinationId && !data.destinationId.startsWith('google_')) ? data.destinationId : null,
       destination_position: data.destinationPosition || null,
       depart_nom: data.departNom || null,
-      depart_id: data.departId || null,
+      depart_id: (data.departId && !data.departId.startsWith('google_')) ? data.departId : null,
       depart_position: data.departPosition || null,
       distance_km: data.distanceKm || null,
       prix_estime: data.prixEstime || null,
@@ -750,18 +754,45 @@ async function getAvailableDrivers(
   }
 }
 
-// Fonction pour extraire les coordonnées d'un POINT PostGIS
-function getCoordinatesFromPosition(position: string): {latitude: number, longitude: number} {
-  // Format: POINT(longitude latitude)
-  const match = position.match(/POINT\(([^ ]+) ([^ ]+)\)/);
-  if (match) {
-    return {
-      longitude: parseFloat(match[1]),
-      latitude: parseFloat(match[2])
-    };
+// Fonction intelligente pour obtenir les coordonnées d'une adresse
+async function getCoordinatesFromAddress(addressData: string): Promise<{latitude: number, longitude: number}> {
+  if (!addressData || typeof addressData !== 'string') {
+    console.log(`❌ getCoordinatesFromAddress - Adresse invalide: ${addressData} (type: ${typeof addressData})`);
+    throw new Error(`Adresse invalide ou manquante: ${addressData}`);
   }
-  throw new Error(`Format de position invalide: ${position}`);
+
+  console.log(`🔍 getCoordinatesFromAddress - Traitement: "${addressData}"`);
+
+  // Cas 1: C'est un POINT PostGIS (position GPS partagée)
+  try {
+    const pointMatch = addressData.match(/POINT\(([^ ]+) ([^ ]+)\)/);
+    if (pointMatch) {
+      console.log(`📍 Coordonnées extraites du POINT: ${pointMatch[1]}, ${pointMatch[2]}`);
+      return {
+        longitude: parseFloat(pointMatch[1]),
+        latitude: parseFloat(pointMatch[2])
+      };
+    }
+  } catch (error) {
+    console.log(`❌ Erreur lors du match POINT: ${error.message}`);
+    throw new Error(`Erreur traitement coordonnées: ${error.message}`);
+  }
+
+  // Cas 2: C'est un nom de lieu - utilise searchAdresse qui respecte la priorité base → Google Places
+  console.log(`🔍 Recherche coordonnées pour lieu: "${addressData}"`);
+  const lieu = await searchAdresse(addressData);
+  
+  if (!lieu) {
+    throw new Error(`Lieu non trouvé: "${addressData}"`);
+  }
+  
+  console.log(`📍 Coordonnées trouvées pour "${lieu.nom}": ${lieu.latitude}, ${lieu.longitude}`);
+  return {
+    latitude: lieu.latitude,
+    longitude: lieu.longitude
+  };
 }
+
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -822,25 +853,113 @@ async function searchAdressePartial(keyword: string): Promise<any[]> {
   try {
     console.log(`🔍 Recherche fuzzy: "${keyword}"`);
     
-    // OPTIMISATION : Utiliser adresses_with_coords maintenant que la colonne actif est disponible
-    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/adresses_with_coords?select=id,nom,ville,type_lieu,longitude,latitude,position&actif=eq.true&or=(nom.ilike.*${encodeURIComponent(keyword)}*,nom_normalise.ilike.*${encodeURIComponent(keyword)}*)&order=nom`, {
-      method: 'GET',
+    // CORRECTION 1: Recherche fuzzy améliorée avec PostgreSQL similarity()
+    // Utilise pg_trgm pour détecter "lambayi" vs "lambanyi" (1 lettre différence)
+    const fuzzyQuery = `
+      SELECT id, nom, ville, type_lieu, longitude, latitude, position,
+             similarity(nom_normalise, '${keyword.toLowerCase()}') as score
+      FROM adresses_with_coords 
+      WHERE actif = true 
+        AND (
+          nom_normalise ILIKE '%${keyword.toLowerCase()}%' 
+          OR similarity(nom_normalise, '${keyword.toLowerCase()}') > 0.3
+        )
+      ORDER BY score DESC, nom
+      LIMIT 10
+    `;
+    
+    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse_fuzzy`, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${workingApiKey}`,
         'apikey': workingApiKey,
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify({ 
+        search_query: keyword.toLowerCase(),
+        similarity_threshold: 0.3,
+        limit_results: 10
+      })
     });
     
+    let adresses = [];
+    
     if (!response.ok) {
-      console.error(`❌ Erreur recherche fuzzy: ${response.status} - ${response.statusText}`);
-      const errorText = await response.text();
-      console.error(`❌ Détails erreur: ${errorText}`);
-      return [];
+      console.log(`⚠️ RPC fuzzy non disponible, fallback vers ilike amélioré`);
+      
+      // Fallback amélioré: recherche plus flexible avec variations courantes
+      // CORRECTION: Syntaxe PostgREST corrigée pour OR avec actif=true
+      const fallbackResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/adresses_with_coords?select=id,nom,ville,type_lieu,longitude,latitude,position&actif=eq.true&or=(nom_normalise.ilike.*${encodeURIComponent(keyword.toLowerCase())}*,nom.ilike.*${encodeURIComponent(keyword.toLowerCase())}*)&order=nom&limit=10`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (fallbackResponse.ok) {
+        adresses = await fallbackResponse.json();
+      }
+      
+      // NOUVEAU: Gérer les variations orthographiques de Lambanyi
+      const lambanVariations = ['lambay', 'lambayi', 'lambani', 'lambanyi'];
+      let hasLambanVariation = false;
+      let detectedVariation = '';
+      
+      // Détecter si le mot contient une variation de Lambanyi
+      for (const variation of lambanVariations) {
+        if (keyword.toLowerCase().includes(variation) && variation !== 'lambanyi') {
+          hasLambanVariation = true;
+          detectedVariation = variation;
+          break;
+        }
+      }
+      
+      if (hasLambanVariation) {
+        console.log(`🔄 Recherche avec variation orthographique: ${detectedVariation} → lambanyi`);
+        const keywordVariant = keyword.toLowerCase().replace(new RegExp(detectedVariation, 'g'), 'lambanyi');
+        
+        const variantResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/adresses_with_coords?select=id,nom,ville,type_lieu,longitude,latitude,position&actif=eq.true&or=(nom_normalise.ilike.*${encodeURIComponent(keywordVariant)}*,nom.ilike.*${encodeURIComponent(keywordVariant)}*)&order=nom&limit=10`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${workingApiKey}`,
+            'apikey': workingApiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (variantResponse.ok) {
+          const variantResults = await variantResponse.json();
+          console.log(`📊 Trouvé ${variantResults.length} résultat(s) avec la variation`);
+          
+          // Combiner les résultats et privilégier les noms plus longs/complets
+          adresses = [...variantResults, ...adresses];
+          
+          // Dédupliquer par ID et trier par longueur de nom décroissante
+          const uniqueMap = new Map();
+          adresses.forEach((addr: any) => {
+            if (!uniqueMap.has(addr.id) || addr.nom.length > uniqueMap.get(addr.id).nom.length) {
+              uniqueMap.set(addr.id, addr);
+            }
+          });
+          adresses = Array.from(uniqueMap.values())
+            .sort((a: any, b: any) => b.nom.length - a.nom.length)
+            .slice(0, 10);
+        }
+      }
+    } else {
+      adresses = await response.json();
     }
     
-    const adresses = await response.json();
     console.log(`🎯 ${adresses.length} résultat(s) fuzzy pour "${keyword}"`);
+    
+    // Si aucun résultat avec la recherche locale, appeler Google Places API
+    if (adresses.length === 0) {
+      console.log(`🌐 Aucun résultat local, tentative Google Places API...`);
+      const googleResults = await searchGooglePlacesFallback(keyword);
+      return googleResults;
+    }
     
     // OPTIMISATION : Les coordonnées sont déjà pré-calculées dans adresses_with_coords
     return adresses.map((addr: any) => ({
@@ -850,7 +969,8 @@ async function searchAdressePartial(keyword: string): Promise<any[]> {
       type_lieu: addr.type_lieu,
       latitude: addr.latitude || 0,  // Déjà calculé par PostgreSQL
       longitude: addr.longitude || 0,  // Déjà calculé par PostgreSQL
-      position: addr.position
+      position: addr.position,
+      score: addr.score || 1.0  // Score de similarité si disponible
     }));
     
   } catch (error) {
@@ -859,31 +979,178 @@ async function searchAdressePartial(keyword: string): Promise<any[]> {
   }
 }
 
-async function searchAdresse(searchTerm: string): Promise<any> {
+// CORRECTION 2: Fonction Google Places API en fallback
+async function searchGooglePlacesFallback(keyword: string): Promise<any[]> {
   try {
-    console.log(`🔍 Recherche adresse: "${searchTerm}"`);
+    if (!GOOGLE_PLACES_API_KEY) {
+      console.log(`⚠️ Google Places API key non configurée`);
+      return [];
+    }
+
+    console.log(`🌐 Recherche Google Places: "${keyword}"`);
     
-    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse`, {
-      method: 'POST',
+    // Recherche focalisée sur Conakry, Guinée
+    const query = `${keyword} Conakry Guinea`;
+    const url = `${GOOGLE_PLACES_URL}?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}&location=9.537,−13.678&radius=50000&language=fr&region=gn`;
+    
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${workingApiKey}`,
-        'apikey': workingApiKey,
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ search_term: searchTerm })
+      }
     });
     
     if (!response.ok) {
-      console.error(`❌ Erreur recherche adresse: ${response.status}`);
+      console.error(`❌ Erreur Google Places: ${response.status} - ${response.statusText}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+      console.log(`🌐 Aucun résultat Google Places pour "${keyword}"`);
+      return [];
+    }
+    
+    console.log(`🎯 ${data.results.length} résultat(s) Google Places pour "${keyword}"`);
+    
+    // Convertir les résultats Google Places au format local
+    return data.results.slice(0, 3).map((place: any, index: number) => ({
+      id: `google_${index}_${Date.now()}`, // ID temporaire unique
+      nom: place.name,
+      ville: 'Conakry', // Supposé car recherche focalisée
+      type_lieu: place.types?.[0] || 'establishment',
+      latitude: place.geometry?.location?.lat || 0,
+      longitude: place.geometry?.location?.lng || 0,
+      position: null, // Google ne fournit pas au format PostGIS
+      source: 'google_places', // Marqueur pour distinction
+      address: place.formatted_address,
+      rating: place.rating || null,
+      score: 0.8 // Score artificiel pour Google (considéré comme pertinent)
+    }));
+    
+  } catch (error) {
+    console.error(`💥 Exception Google Places: ${error.message}`);
+    return [];
+  }
+}
+
+// 🔥 FONCTION DIRECTE GOOGLE PLACES (contourner cache search-service)
+async function searchGooglePlacesDirect(query: string): Promise<any> {
+  const GOOGLE_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY');
+  
+  if (!GOOGLE_API_KEY) {
+    console.log(`⚠️ GOOGLE PLACES DIRECT - Clé API manquante`);
+    return null;
+  }
+  
+  try {
+    console.log(`🌐 GOOGLE PLACES DIRECT - Recherche: "${query}"`);
+    
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query + ' Conakry Guinea')}&key=${GOOGLE_API_KEY}`;
+    console.log(`🔗 URL: ${url.replace(GOOGLE_API_KEY, 'API_KEY_HIDDEN')}`);
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    console.log(`📥 Google Places réponse: status=${data.status}, results=${data.results?.length || 0}`);
+    
+    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      console.log(`⚠️ Google Places erreur: ${data.status} - ${data.error_message || 'Erreur inconnue'}`);
       return null;
     }
     
-    const adresses = await response.json();
-    console.log(`📍 ${adresses.length} adresse(s) trouvée(s)`);
+    if (!data.results || data.results.length === 0) {
+      console.log(`📭 Google Places: aucun résultat`);
+      return null;
+    }
     
-    return adresses.length > 0 ? adresses[0] : null;
+    // Retourner le premier résultat dans le format attendu par le bot
+    const place = data.results[0];
+    const result = {
+      id: `google_${place.place_id}`,
+      nom: place.name,
+      adresse_complete: place.formatted_address,
+      latitude: place.geometry.location.lat,
+      longitude: place.geometry.location.lng,
+      source: 'google_places_direct',
+      score: 95
+    };
+    
+    console.log(`🎯 Google Places: ${result.nom} à (${result.latitude}, ${result.longitude})`);
+    return result;
+    
   } catch (error) {
-    console.error(`❌ Exception recherche adresse: ${error.message}`);
+    console.log(`❌ GOOGLE PLACES DIRECT erreur: ${error.message}`);
+    return null;
+  }
+}
+
+async function searchAdresse(searchTerm: string): Promise<any> {
+  try {
+    console.log(`🔍 RECHERCHE INTELLIGENTE: "${searchTerm}"`);
+    
+    // 🔥 FORCER GOOGLE PLACES EN PRIORITÉ ABSOLUE (contourner cache)
+    console.log(`🌐 === FORÇAGE GOOGLE PLACES PRIORITÉ 1 ===`);
+    const googleResult = await searchGooglePlacesDirect(searchTerm);
+    if (googleResult) {
+      console.log(`✅ GOOGLE PLACES DIRECT - Trouvé: ${googleResult.nom} (${googleResult.latitude}, ${googleResult.longitude})`);
+      return googleResult;
+    }
+    
+    console.log(`📭 GOOGLE PLACES DIRECT - Aucun résultat, fallback vers service intelligent`);
+    
+    // Import du service de recherche intelligent
+    const { searchLocation } = await import('./search-service.ts');
+    
+    // Utiliser le nouveau service de recherche
+    const result = await searchLocation(searchTerm, SUPABASE_URL, workingApiKey);
+    
+    if (result) {
+      // Log détaillé avec source de la recherche
+      const sourceInfo = result.source ? ` (Source: ${result.source})` : '';
+      const scoreInfo = result.score ? ` [Score: ${result.score}]` : '';
+      console.log(`📍 RECHERCHE INTELLIGENTE - Trouvé: ${result.nom}${sourceInfo}${scoreInfo}`);
+      
+      // Log spécifique selon la source
+      if (result.source?.startsWith('database_')) {
+        console.log(`💾 RECHERCHE DATABASE - Stratégie: ${result.source.replace('database_', '')}`);
+      } else if (result.source === 'google_places') {
+        console.log(`🌐 RECHERCHE GOOGLE PLACES - API externe utilisée`);
+      }
+      
+      return result;
+    }
+    
+    console.log(`❌ RECHERCHE INTELLIGENTE - Aucun résultat pour: "${searchTerm}"`);
+    return null;
+  } catch (error) {
+    console.error(`❌ Exception recherche intelligente: ${error.message}`);
+    // Fallback vers l'ancienne méthode en cas d'erreur
+    try {
+      const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ search_term: searchTerm })
+      });
+      
+      if (response.ok) {
+        const adresses = await response.json();
+        if (adresses.length > 0) {
+          console.log(`🔄 FALLBACK SQL - Trouvé: ${adresses[0].nom} (Source: database_sql_fallback)`);
+          return adresses[0];
+        } else {
+          console.log(`❌ FALLBACK SQL - Aucun résultat pour: "${searchTerm}"`);
+        }
+        return null;
+      }
+    } catch (fallbackError) {
+      console.error(`❌ Fallback aussi échoué: ${fallbackError.message}`);
+    }
     return null;
   }
 }
@@ -1696,9 +1963,61 @@ Status: ${dbTest.status || 'unknown'}
 Réessayez plus tard ou contactez le support.`;
     }
   
-  // 🔄 HANDLER GLOBAL RESET - Prioritaire sur tous les autres
-  } else if (messageText.includes('taxi') || messageText.toLowerCase() === 'annuler') {
-    console.log(`🔄 RESET WORKFLOW - Commande détectée: "${messageText}"`);
+  // 🚫 HANDLER ANNULATION COMPLÈTE - Prioritaire sur tous les autres
+  } else if (messageText.toLowerCase() === 'annuler') {
+    console.log(`🚫 ANNULATION TOTALE - Demandée par: ${clientPhone}`);
+    
+    // 1. Annuler les réservations pending
+    const cancelResult = await cancelPendingReservations(clientPhone);
+    
+    // 2. Nettoyer sessions
+    try {
+      await fetchWithRetry(`${SUPABASE_URL}/rest/v1/sessions?client_phone=eq.${encodeURIComponent(clientPhone)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log(`🧹 Sessions nettoyées pour ${clientPhone}`);
+    } catch (error) {
+      console.error('❌ Erreur suppression session:', error);
+    }
+    
+
+      // Mettre à jour réservations pending vers canceled
+  try {
+    const updateResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?client_phone=eq.${encodeURIComponent(clientPhone)}&statut=eq.pending`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${workingApiKey}`,
+        'apikey': workingApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        statut: 'canceled',
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (updateResponse.ok) {
+      console.log('✅ Réservations mises à jour vers canceled');
+    }
+  } catch (error) {
+    console.error('❌ Erreur mise à jour réservations:', error);
+  }
+  
+    // 3. Message de confirmation personnalisé
+    responseMessage = `✅ **Annulation terminée !**
+
+${cancelResult.message}${cancelResult.message ? '\n' : ''}Toutes vos données ont été effacées.
+
+Pour une nouvelle réservation, tapez 'taxi' 🚕`;
+
+  // 🔄 HANDLER NOUVEAU TAXI - Démarrage conversation
+  } else if (messageText.includes('taxi')) {
+    console.log(`🔄 NOUVEAU WORKFLOW TAXI - Commande détectée: "${messageText}"`);
     
     // Nettoyer session précédente
     try {
@@ -1710,7 +2029,7 @@ Réessayez plus tard ou contactez le support.`;
           'Content-Type': 'application/json'
         }
       });
-      console.log(`🧹 Session précédente nettoyée pour ${clientPhone}`);
+      console.log(`🧹 Session précédente nettoyée pour nouveau taxi: ${clientPhone}`);
     } catch (error) {
       console.error('❌ Erreur suppression session:', error);
     }
@@ -1812,6 +2131,65 @@ Cette réservation est-elle pour vous ?
 • "non" → Choisir une autre destination
 
 **Ou tapez directement le nom d'une nouvelle destination.**`;
+      } else if (session.etat === 'lieu_depart_trouve') {
+        // NOUVEAU: Handler destination GPS après lieu départ trouvé (réservation tierce)
+        console.log(`🎯 DEBUG - DESTINATION GPS - État: lieu_depart_trouve, GPS reçu: ${lat}, ${lon}`);
+        
+        // Vérifier qu'on a bien un lieu de départ dans la session
+        if (!session.departNom) {
+          responseMessage = `❌ Erreur: Lieu de départ manquant. Retapez 'taxi' pour recommencer.`;
+        } else {
+          // Calculer la distance entre lieu départ et destination GPS
+          const lieuDepartCoords = await getCoordinatesFromAddress(session.departNom);
+          console.log(`🔍 DEBUG - Format coordonnées getCoordinatesFromAddress:`, JSON.stringify(lieuDepartCoords));
+          if (lieuDepartCoords) {
+            // 🔧 NORMALISATION FORMAT: {latitude,longitude} → {lat,lon} pour calculateDistance
+            const coordsNormalized = {
+              lat: lieuDepartCoords.latitude,
+              lon: lieuDepartCoords.longitude
+            };
+            console.log(`🔍 DEBUG - Paramètres calculateDistance normalisés:`, JSON.stringify({depart: coordsNormalized, destination: {lat, lon}}));
+            const distance = calculateDistance(coordsNormalized.lat, coordsNormalized.lon, lat, lon);
+            console.log(`🔍 DEBUG - Distance retournée:`, distance);
+            const prix = await calculerPrixCourse(session.vehicleType || 'moto', distance);
+            console.log(`🔍 DEBUG - Prix retourné:`, JSON.stringify(prix));
+            
+            // Protection contre prix null
+            if (!prix || !prix.prix_total) {
+              responseMessage = `❌ Erreur calcul du prix. Retapez 'taxi' pour recommencer.`;
+              return;
+            }
+            
+            await saveSession(clientPhone, {
+              ...session,
+              destinationNom: 'Position GPS partagée',
+              positionArrivee: `POINT(${lon} ${lat})`,
+              distance: distance,
+              prixEstime: prix.prix_total,
+              etat: 'prix_calcule_tiers'
+            });
+            
+            responseMessage = `📍 **DESTINATION REÇUE**
+🎯 Coordonnées: ${lat.toFixed(3)}°N, ${lon.toFixed(3)}°W
+
+📋 **RÉSUMÉ DE VOTRE COURSE**
+🔄 *Réservation Tierce*
+
+🚗 **Véhicule:** ${session.vehicleType?.toUpperCase()}
+👥 **Client:** Une autre personne
+📍 **Départ:** ${session.departNom}
+🎯 **Arrivée:** Position GPS partagée
+📏 **Distance:** ${distance.toFixed(1)} km
+💰 **Prix:** *${prix.prix_total.toLocaleString('fr-FR')} GNF*
+⏱️ **Durée:** ~${Math.ceil(distance * 4)} minutes
+
+✅ **Confirmez-vous cette réservation ?**
+💬 Répondez **"oui"** pour confirmer`;
+          } else {
+            responseMessage = `❌ Erreur: Impossible de récupérer les coordonnées du lieu de départ. 
+Retapez 'taxi' pour recommencer.`;
+          }
+        }
       } else if (!session.vehicleType) {
         // CAS STANDARD: Pas de vehicleType ET pas d'état IA
         console.log(`📝 DEBUG - WORKFLOW TEXTE - Pas de vehicleType dans la session`);
@@ -2001,9 +2379,9 @@ Tapez le numéro de votre choix ou essayez un autre nom`;
         // Aucun conducteur au lieu
         await saveSession(clientPhone, {
           ...session,
-          lieuDepartNom: lieuDepart.nom,
-          lieuDepartId: lieuDepart.id,
-          lieuDepartPosition: `POINT(${lieuDepart.longitude} ${lieuDepart.latitude})`,
+          departNom: lieuDepart.nom,
+          departId: lieuDepart.id,
+          departPosition: `POINT(${lieuDepart.longitude} ${lieuDepart.latitude})`,
           etat: 'aucun_conducteur_lieu_depart'
         });
         
@@ -2021,12 +2399,14 @@ Options disponibles:
         // Conducteurs trouvés
         await saveSession(clientPhone, {
           ...session,
-          lieuDepartNom: lieuDepart.nom,
-          lieuDepartId: lieuDepart.id,
-          lieuDepartPosition: `POINT(${lieuDepart.longitude} ${lieuDepart.latitude})`,
+          departNom: lieuDepart.nom,
+          departId: lieuDepart.id,
+          departPosition: `POINT(${lieuDepart.longitude} ${lieuDepart.latitude})`,
           etat: 'lieu_depart_trouve',
           conducteursDisponibles: conducteursProches.length
         });
+        
+        console.log(`🎯 DEBUG - LIEU DÉPART SAUVÉ - État mis à jour: lieu_depart_trouve`);
         
         responseMessage = `✅ Lieu trouvé: ${lieuDepart.nom}
 📍 Position: ${lieuDepart.latitude.toFixed(3)}°N, ${lieuDepart.longitude.toFixed(3)}°W
@@ -2043,6 +2423,8 @@ Tapez le nom du lieu où vous voulez aller.`;
     
   // Handler pour destination finale après lieu départ trouvé (réservation tierce)
   } else if (session.etat === 'lieu_depart_trouve' && !hasLocation) {
+    console.log(`🎯 DEBUG - DESTINATION - État session: ${session.etat}, messageText: "${messageText}"`);
+    console.log(`🎯 DEBUG - DESTINATION - Session complète:`, JSON.stringify(session, null, 2));
     const destination = await searchAdresse(messageText);
     
     if (!destination) {
@@ -2060,7 +2442,14 @@ ${suggestionsText}
 Tapez le numéro ou essayez un autre nom`;
     } else {
       // Calculer distance et prix depuis lieu de départ
-      const departCoords = await getCoordinatesFromPosition(session.lieuDepartPosition!);
+      if (!session.departPosition && !session.departNom) {
+        throw new Error("Position ou nom de départ manquant dans la session");
+      }
+      
+      // Utiliser la fonction intelligente qui gère POINT ET nom de lieu
+      const addressData = session.departPosition || session.departNom;
+      const departCoords = await getCoordinatesFromAddress(addressData!);
+      
       const distanceKm = calculateDistance(
         departCoords.latitude, 
         departCoords.longitude,
@@ -2084,7 +2473,7 @@ Tapez le numéro ou essayez un autre nom`;
 ========================================
 🚗 Type: ${session.vehicleType!.toUpperCase()}
 👤 Pour: Une autre personne
-📍 Départ: ${session.lieuDepartNom}
+📍 Départ: ${session.departNom}
 🏁 Destination: ${destination.nom}
 📏 Distance: ${distanceKm.toFixed(1)} km
 💰 Prix estimé: ${prixInfo.prix_total.toLocaleString('fr-FR')} GNF
@@ -2094,7 +2483,7 @@ Tapez le numéro ou essayez un autre nom`;
 Confirmez-vous cette réservation ?
 (Répondez "oui" pour confirmer)`;
     }
-    
+
   } else if (session.etat === 'position_recue_avec_destination_ia' && !hasLocation) {
     // Gestion de la confirmation de destination IA
     if (messageText === 'oui' || messageText === 'confirmer') {
@@ -2192,8 +2581,8 @@ Confirmez-vous cette réservation ?
     }
   } else if ((messageText === 'oui' || messageText === 'confirmer') && (session.etat === 'prix_calcule' || session.etat === 'prix_calcule_planifie' || session.etat === 'prix_calcule_tiers')) {
     // Confirmation et recherche conducteur
-    const positionDepart = session.etat === 'prix_calcule_tiers' && session.lieuDepartPosition
-      ? await getCoordinatesFromPosition(session.lieuDepartPosition)
+    const positionDepart = session.etat === 'prix_calcule_tiers' && (session.departPosition || session.departNom)
+      ? await getCoordinatesFromAddress(session.departPosition || session.departNom!)
       : await getClientCoordinates(normalizePhone(from));
     
     const nearestDriver = await findNearestDriver(session.vehicleType!, positionDepart.latitude, positionDepart.longitude);
@@ -2206,8 +2595,8 @@ Veuillez réessayer dans quelques minutes.
 Pour recommencer: écrivez 'taxi'`;
     } else {
       // Sauvegarder réservation
-      const departCoords = session.etat === 'prix_calcule_tiers' && session.lieuDepartPosition
-        ? await getCoordinatesFromPosition(session.lieuDepartPosition)
+      const departCoords = session.etat === 'prix_calcule_tiers' && (session.departPosition || session.departNom)
+        ? await getCoordinatesFromAddress(session.departPosition || session.departNom!)
         : await getClientCoordinates(normalizePhone(from));
       
       const reservationData = {
@@ -2256,7 +2645,7 @@ Pour recommencer: écrivez 'taxi'`;
           });
           
           const tierceInfo = session.etat === 'prix_calcule_tiers' 
-            ? `👤 Pour: Une autre personne\n📍 Départ: ${session.lieuDepartNom}\n`
+            ? `👤 Pour: Une autre personne\n📍 Départ: ${session.departNom}\n`
             : '';
           
           responseMessage = `⏳ **RÉSERVATION EN ATTENTE**
@@ -2304,7 +2693,9 @@ Veuillez réessayer plus tard.`;
     
     const centerCoords = session.etat === 'aucun_conducteur_proximite' 
       ? await getClientCoordinates(clientPhone)
-      : await getCoordinatesFromPosition(session.lieuDepartPosition!);
+      : (session.departPosition || session.departNom)
+        ? await getCoordinatesFromAddress(session.departPosition || session.departNom!)
+        : await getClientCoordinates(clientPhone);
     
     const conducteursElargis = await getAvailableDrivers(
       session.vehicleType!,
@@ -2948,6 +3339,53 @@ Réessayez dans quelques secondes ou utilisez le système texte:
       'Content-Type': 'text/xml; charset=utf-8'
     }
   });
+}
+
+// =================================================================
+// FONCTION ANNULATION RÉSERVATIONS PENDING
+// =================================================================
+
+async function cancelPendingReservations(clientPhone: string): Promise<{canceled: number, message: string}> {
+  try {
+    console.log(`🚫 Tentative annulation réservations pending pour: ${clientPhone}`);
+    
+    // Mettre à jour toutes les réservations pending vers canceled
+    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?client_phone=eq.${encodeURIComponent(clientPhone)}&statut=eq.pending`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${workingApiKey}`,
+        'apikey': workingApiKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        statut: 'canceled',
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      const canceledReservations = await response.json();
+      const count = canceledReservations.length;
+      console.log(`✅ ${count} réservation(s) annulée(s) pour ${clientPhone}`);
+      
+      if (count > 0) {
+        const reservationIds = canceledReservations.map((r: any) => r.id).join(', ');
+        console.log(`📋 IDs réservations annulées: ${reservationIds}`);
+      }
+      
+      return {
+        canceled: count,
+        message: count > 0 ? `${count} réservation(s) en attente annulée(s).` : ''
+      };
+    } else {
+      console.error('❌ Erreur annulation réservations:', response.status, await response.text());
+      return { canceled: 0, message: '' };
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'annulation des réservations:', error);
+    return { canceled: 0, message: '' };
+  }
 }
 
 // =================================================================

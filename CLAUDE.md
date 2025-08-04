@@ -10,21 +10,58 @@
 3. **JAMAIS modifier** sans avoir créé le backup au préalable
 
 **💾 COMMANDES OBLIGATOIRES :**
+
+**🤖 BOT PRINCIPAL :**
 ```bash
-# AVANT CHAQUE MODIFICATION/DÉPLOIEMENT DU BOT
+# AVANT CHAQUE MODIFICATION/DÉPLOIEMENT DU BOT PRINCIPAL
 cd "C:\Users\diall\Documents\LokoTaxi\supabase\functions\whatsapp-bot"
-cp index.ts index_PRODUCTION_BACKUP.ts
+
+# BACKUP AUTOMATIQUE avec date/heure du PC
+$timestamp = Get-Date -Format "dd-MM-yyyy-HHh-mmins"
+cp index.ts "index_backup_PRINCIPAL_$timestamp.ts"
 
 # Puis faire les modifications et déployer
 supabase functions deploy whatsapp-bot
 ```
 
-**🔄 FICHIER DE SAUVEGARDE :**
-- **Nom fixe** : `index_PRODUCTION_BACKUP.ts` 
-- **Contenu** : Version stable précédente du bot
+**🤖 BOT V2 (Recherche Intelligente) :**
+```bash
+# AVANT CHAQUE MODIFICATION/DÉPLOIEMENT DU BOT V2
+cd "C:\Users\diall\Documents\LokoTaxi\supabase\functions\whatsapp-bot-v2"
+
+# BACKUP AUTOMATIQUE avec nouveau format date/heure
+$timestamp = Get-Date -Format "MM_yyyy_HHh_mmins"
+cp index.ts "backup_bot_v2_$timestamp.ts"
+
+# Puis faire les modifications et déployer
+supabase functions deploy whatsapp-bot-v2
+```
+
+**🔄 FICHIERS DE SAUVEGARDE :**
+- **Format obligatoire BOT PRINCIPAL** : `index_backup_PRINCIPAL_DD-MM-YYYY-HHh-MMmins.ts`
+- **Format obligatoire BOT V2** : `backup_bot_v2_MM_YYYY_HHh_MMmins.ts`
+- **Exemples** : 
+  - `index_backup_PRINCIPAL_31-07-2025-14h-25mins.ts`
+  - `backup_bot_v2_08_2025_18h_19mins.ts`
+- **Contenu** : Version stable précédente du bot correspondant
 - **Usage** : Restauration rapide en cas de problème
 
+**⚠️ TOUJOURS utiliser l'heure réelle du système PC, pas une heure estimée !**
+
 **⚠️ CETTE RÈGLE ÉVITE DE PERDRE DES JOURS DE TRAVAIL - JAMAIS L'OUBLIER !**
+
+---
+
+## 🔐 **INFORMATIONS CONNEXION SUPABASE**
+
+### **📋 PARAMÈTRES BASE DE DONNÉES**
+- **Host** : `nmwnibzgvwltipmtwhzo.supabase.co`
+- **Port** : `5432`
+- **Database** : `postgres`
+- **User** : `postgres`
+- **Password** : `ZJEDz4SiszotA1ml`
+
+**⚠️ SÉCURITÉ :** Ces informations sont sensibles - Ne jamais les committer dans un repository public.
 
 ---
 
@@ -65,6 +102,10 @@ Cela explique :
 ## 📁 **REPOSITORY OFFICIEL**
 **🔗 https://github.com/labiko/WhatsAppBotTaxiLako.git**
 **⚠️ IMPORTANT : Toujours utiliser ce repository - NE JAMAIS SE TROMPER !**
+
+## 📊 **STRUCTURE BASE DE DONNÉES**
+**📂 Fichier structure complète:** `C:\Users\diall\Documents\LABICOTAXI\SCRIPT\db_structure.sql`
+**⚠️ Ce fichier contient la structure actuelle de toutes les tables, colonnes et contraintes**
 
 ## 🎯 SUCCÈS COMPLET - Bot Pular V2 Déployé (2025-07-25)
 **Bot WhatsApp avec IA Audio** entièrement fonctionnel permettant aux clients de **réserver via audio en Pular** à Conakry.  
@@ -641,6 +682,24 @@ Quand on implémente une nouvelle fonctionnalité :
 
 ---
 
+## 📂 Format de Backup Requis
+
+**Format obligatoire pour les backups :**
+```
+index_backup_DD-MM-YYYY-HHh-MMmins.ts
+```
+
+**Exemple :** `index_backup_30-07-2025-10h-01mins.ts`
+
+**⚠️ IMPORTANT :** Toujours utiliser l'heure réelle du système PC, pas une heure estimée.
+
+**📋 Dernière sauvegarde :**
+- **Fichier :** `index_backup_30-07-2025-10h-05mins.ts`
+- **Taille :** 106,693 octets  
+- **Contenu :** Système réservation tierce et moi complet avec vérification conducteurs géolocalisée
+
+---
+
 ## Note importante sur Git
 **Ne jamais ajouter "Claude" comme auteur dans les commits Git.**  
 Le code généré doit être attribué à l'équipe projet ou à moi-même, jamais à l'IA.
@@ -1027,3 +1086,37 @@ WHISPER_API_URL=https://api.openai.com/v1/audio/transcriptions
 **🚀 COMMIT FINAL :** `94e25ed` - Toutes les fonctionnalités intégrées en production
 
 **📋 DOCUMENTATION :** [DOCUMENTATION_COMPLETE_BOTS.md](file:///C:/Users/diall/Documents/LokoTaxi/DOCUMENTATION_COMPLETE_BOTS.md)
+
+---
+
+## 🔍 **RÈGLE CRITIQUE - RECHERCHE D'ADRESSES GOOGLE PLACES UNIQUEMENT**
+
+**⚠️ IMPORTANT - RÈGLE TEMPORAIRE EN VIGUEUR**
+
+**🚨 RECHERCHE D'ADRESSES :**
+- **UNIQUEMENT Google Places API** pour toutes les recherches d'adresses
+- **PAS de recherche en base de données** temporairement
+- **Raison :** Nettoyage des données en cours dans la base
+
+**🔧 CONFIGURATION REQUISE :**
+```typescript
+// Configuration priorité de recherche
+const DEFAULT_BOT_CONFIG: SearchConfig = {
+  primarySource: 'google_places', // 🔥 OBLIGATOIRE
+  fallbackToDatabase: false,      // 🔥 DÉSACTIVÉ temporairement
+  useLocalSearch: false           // 🔥 DÉSACTIVÉ temporairement
+};
+```
+
+**📋 APPLICATIONS :**
+- ✅ Bot WhatsApp V2 : Recherche de départ et destination
+- ✅ Edge Functions : Toutes les fonctions de géolocalisation
+- ✅ Services de recherche : search-service.ts configuré en Google Places
+- ✅ Tests unitaires : Utiliser uniquement Google Places API
+
+**🎯 OBJECTIF :**
+Éviter les résultats incohérents pendant la phase de nettoyage et standardisation de la base de données d'adresses.
+
+**📅 STATUT :** Temporaire - À réviser après nettoyage base de données
+
+**⚠️ Cette règle remplace temporairement toute autre logique de recherche d'adresses.**

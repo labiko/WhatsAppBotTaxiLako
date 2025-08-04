@@ -24,3 +24,32 @@ node_modules/
 # Temporary files
 *.tmp
 *.temp
+
+# Fichiers volumineux (données)
+*.csv
+*.tsv
+*.json
+*.sql
+*.txt
+
+# Fichiers de données OSM et extractions
+*_raw_*.json
+*_complete_*.json
+*_google_*.json
+*_osm_*.csv
+*_osm_*.tsv
+conakry_*
+batch_*.sql
+INSERT_*.sql
+
+# Fichiers de backup et logs volumineux
+backup_*.sql
+dump_*.sql
+log_*.json
+
+# Fichiers contenant des secrets (à ne jamais committer)
+DEPLOYER_V2_HUGGINGFACE.cmd
+DOTNET_WHATSAPP_SERVICE.cs
+OPTION_2_POLLING.js
+extract_osm_guinea.js
+*PRODUCTION_BACKUP*.ts

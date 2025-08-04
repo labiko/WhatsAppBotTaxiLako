@@ -861,29 +861,59 @@ async function searchAdressePartial(keyword: string): Promise<any[]> {
 
 async function searchAdresse(searchTerm: string): Promise<any> {
   try {
-    console.log(`🔍 Recherche adresse: "${searchTerm}"`);
+    console.log(`🔍 RECHERCHE INTELLIGENTE: "${searchTerm}"`);
     
-    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${workingApiKey}`,
-        'apikey': workingApiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ search_term: searchTerm })
-    });
+    // Import du service de recherche intelligent
+    const { searchLocation } = await import('./search-service.ts');
     
-    if (!response.ok) {
-      console.error(`❌ Erreur recherche adresse: ${response.status}`);
-      return null;
+    // Utiliser le nouveau service de recherche
+    const result = await searchLocation(searchTerm, SUPABASE_URL, workingApiKey);
+    
+    if (result) {
+      // Log détaillé avec source de la recherche
+      const sourceInfo = result.source ? ` (Source: ${result.source})` : '';
+      const scoreInfo = result.score ? ` [Score: ${result.score}]` : '';
+      console.log(`📍 RECHERCHE INTELLIGENTE - Trouvé: ${result.nom}${sourceInfo}${scoreInfo}`);
+      
+      // Log spécifique selon la source
+      if (result.source?.startsWith('database_')) {
+        console.log(`💾 RECHERCHE DATABASE - Stratégie: ${result.source.replace('database_', '')}`);
+      } else if (result.source === 'google_places') {
+        console.log(`🌐 RECHERCHE GOOGLE PLACES - API externe utilisée`);
+      }
+      
+      return result;
     }
     
-    const adresses = await response.json();
-    console.log(`📍 ${adresses.length} adresse(s) trouvée(s)`);
-    
-    return adresses.length > 0 ? adresses[0] : null;
+    console.log(`❌ RECHERCHE INTELLIGENTE - Aucun résultat pour: "${searchTerm}"`);
+    return null;
   } catch (error) {
-    console.error(`❌ Exception recherche adresse: ${error.message}`);
+    console.error(`❌ Exception recherche intelligente: ${error.message}`);
+    // Fallback vers l'ancienne méthode en cas d'erreur
+    try {
+      const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ search_term: searchTerm })
+      });
+      
+      if (response.ok) {
+        const adresses = await response.json();
+        if (adresses.length > 0) {
+          console.log(`🔄 FALLBACK SQL - Trouvé: ${adresses[0].nom} (Source: database_sql_fallback)`);
+          return adresses[0];
+        } else {
+          console.log(`❌ FALLBACK SQL - Aucun résultat pour: "${searchTerm}"`);
+        }
+        return null;
+      }
+    } catch (fallbackError) {
+      console.error(`❌ Fallback aussi échoué: ${fallbackError.message}`);
+    }
     return null;
   }
 }
@@ -1696,9 +1726,61 @@ Status: ${dbTest.status || 'unknown'}
 Réessayez plus tard ou contactez le support.`;
     }
   
-  // 🔄 HANDLER GLOBAL RESET - Prioritaire sur tous les autres
-  } else if (messageText.includes('taxi') || messageText.toLowerCase() === 'annuler') {
-    console.log(`🔄 RESET WORKFLOW - Commande détectée: "${messageText}"`);
+  // 🚫 HANDLER ANNULATION COMPLÈTE - Prioritaire sur tous les autres
+  } else if (messageText.toLowerCase() === 'annuler') {
+    console.log(`🚫 ANNULATION TOTALE - Demandée par: ${clientPhone}`);
+    
+    // 1. Annuler les réservations pending
+    const cancelResult = await cancelPendingReservations(clientPhone);
+    
+    // 2. Nettoyer sessions
+    try {
+      await fetchWithRetry(`${SUPABASE_URL}/rest/v1/sessions?client_phone=eq.${encodeURIComponent(clientPhone)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log(`🧹 Sessions nettoyées pour ${clientPhone}`);
+    } catch (error) {
+      console.error('❌ Erreur suppression session:', error);
+    }
+    
+
+      // Mettre à jour réservations pending vers canceled
+  try {
+    const updateResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?client_phone=eq.${encodeURIComponent(clientPhone)}&statut=eq.pending`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${workingApiKey}`,
+        'apikey': workingApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        statut: 'canceled',
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (updateResponse.ok) {
+      console.log('✅ Réservations mises à jour vers canceled');
+    }
+  } catch (error) {
+    console.error('❌ Erreur mise à jour réservations:', error);
+  }
+  
+    // 3. Message de confirmation personnalisé
+    responseMessage = `✅ **Annulation terminée !**
+
+${cancelResult.message}${cancelResult.message ? '\n' : ''}Toutes vos données ont été effacées.
+
+Pour une nouvelle réservation, tapez 'taxi' 🚕`;
+
+  // 🔄 HANDLER NOUVEAU TAXI - Démarrage conversation
+  } else if (messageText.includes('taxi')) {
+    console.log(`🔄 NOUVEAU WORKFLOW TAXI - Commande détectée: "${messageText}"`);
     
     // Nettoyer session précédente
     try {
@@ -1710,7 +1792,7 @@ Réessayez plus tard ou contactez le support.`;
           'Content-Type': 'application/json'
         }
       });
-      console.log(`🧹 Session précédente nettoyée pour ${clientPhone}`);
+      console.log(`🧹 Session précédente nettoyée pour nouveau taxi: ${clientPhone}`);
     } catch (error) {
       console.error('❌ Erreur suppression session:', error);
     }
@@ -2948,6 +3030,53 @@ Réessayez dans quelques secondes ou utilisez le système texte:
       'Content-Type': 'text/xml; charset=utf-8'
     }
   });
+}
+
+// =================================================================
+// FONCTION ANNULATION RÉSERVATIONS PENDING
+// =================================================================
+
+async function cancelPendingReservations(clientPhone: string): Promise<{canceled: number, message: string}> {
+  try {
+    console.log(`🚫 Tentative annulation réservations pending pour: ${clientPhone}`);
+    
+    // Mettre à jour toutes les réservations pending vers canceled
+    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?client_phone=eq.${encodeURIComponent(clientPhone)}&statut=eq.pending`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${workingApiKey}`,
+        'apikey': workingApiKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        statut: 'canceled',
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      const canceledReservations = await response.json();
+      const count = canceledReservations.length;
+      console.log(`✅ ${count} réservation(s) annulée(s) pour ${clientPhone}`);
+      
+      if (count > 0) {
+        const reservationIds = canceledReservations.map((r: any) => r.id).join(', ');
+        console.log(`📋 IDs réservations annulées: ${reservationIds}`);
+      }
+      
+      return {
+        canceled: count,
+        message: count > 0 ? `${count} réservation(s) en attente annulée(s).` : ''
+      };
+    } else {
+      console.error('❌ Erreur annulation réservations:', response.status, await response.text());
+      return { canceled: 0, message: '' };
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'annulation des réservations:', error);
+    return { canceled: 0, message: '' };
+  }
 }
 
 // =================================================================

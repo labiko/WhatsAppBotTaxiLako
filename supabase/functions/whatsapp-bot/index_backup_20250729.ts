@@ -60,11 +60,6 @@ interface Session {
   // Suggestions multiples
   suggestionsDepart?: string
   suggestionsDestination?: string
-  // 🌟 SYSTÈME NOTATION CONDUCTEUR
-  waitingForNote?: boolean
-  waitingForComment?: boolean
-  reservationToRate?: string
-  currentRating?: number
 }
 
 // =================================================================
@@ -300,22 +295,11 @@ async function saveSession(phone: string, data: any): Promise<void> {
       // Suggestions multiples
       suggestions_depart: data.suggestionsDepart || null,
       suggestions_destination: data.suggestionsDestination || null,
-      // 🌟 SYSTÈME NOTATION CONDUCTEUR
-      waiting_for_note: data.waitingForNote || false,
-      waiting_for_comment: data.waitingForComment || false,
-      reservation_to_rate: data.reservationToRate || null,
-      current_rating: data.currentRating || null,
       updated_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() // 4 heures pour éviter problèmes timezone
     };
 
     console.log(`🚨 DEBUG - sessionData construit:`, JSON.stringify(sessionData, null, 2));
-    
-    // 🌟 LOGS SPÉCIFIQUES SYSTÈME NOTATION
-    console.log(`🌟 DEBUG NOTATION - waiting_for_note: ${sessionData.waiting_for_note} (from data: ${data.waitingForNote})`);
-    console.log(`🌟 DEBUG NOTATION - waiting_for_comment: ${sessionData.waiting_for_comment} (from data: ${data.waitingForComment})`);
-    console.log(`🌟 DEBUG NOTATION - reservation_to_rate: ${sessionData.reservation_to_rate} (from data: ${data.reservationToRate})`);
-    console.log(`🌟 DEBUG NOTATION - current_rating: ${sessionData.current_rating} (from data: ${data.currentRating})`);
 
     // CORRECTION : Utiliser UPSERT pour créer OU mettre à jour
     console.log(`💾 DEBUG - UPSERT session pour ${phone}`);
@@ -438,11 +422,6 @@ async function getSession(phone: string): Promise<Session> {
           // Suggestions multiples
           suggestionsDepart: session.suggestions_depart,
           suggestionsDestination: session.suggestions_destination,
-          // 🌟 SYSTÈME NOTATION CONDUCTEUR
-          waitingForNote: session.waiting_for_note,
-          waitingForComment: session.waiting_for_comment,
-          reservationToRate: session.reservation_to_rate,
-          currentRating: session.current_rating,
           timestamp: new Date(session.updated_at).getTime()
         };
         console.log(`🔍 DEBUG getSession - Session retournée:`, JSON.stringify(result));
@@ -462,254 +441,9 @@ async function getSession(phone: string): Promise<Session> {
   return {};
 }
 
-// =================================================================
-// 🌟 FONCTIONS SYSTÈME NOTATION CONDUCTEUR
-// =================================================================
-
-async function handleNoteValidation(clientPhone: string, note: number): Promise<Response> {
+async function getAvailableDrivers(vehicleType: string): Promise<any[]> {
   try {
-    console.log(`⭐ Traitement note ${note} pour client ${clientPhone}`);
-    
-    // Récupérer la session
-    const session = await getSession(clientPhone);
-    if (!session?.reservationToRate) {
-      const errorMsg = "❌ Erreur: Aucune réservation à noter trouvée.";
-      const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-      return new Response(twimlError, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-    
-    // Sauvegarder la note dans la réservation
-    const updateResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?id=eq.${session.reservationToRate}`, {
-      method: 'PATCH',
-      headers: {
-        'apikey': workingApiKey,
-        'Authorization': `Bearer ${workingApiKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        note_conducteur: note,
-        updated_at: new Date().toISOString()
-      })
-    });
-    
-    if (!updateResponse.ok) {
-      console.error('❌ Erreur sauvegarde note:', updateResponse.status);
-      const errorMsg = "❌ Erreur lors de la sauvegarde de votre note.";
-      const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-      return new Response(twimlError, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-    
-    // Mettre à jour la session pour attendre commentaire
-    await saveSession(clientPhone, {
-      ...session,
-      waitingForNote: false,
-      waitingForComment: true,
-      currentRating: note,
-      reservationToRate: session.reservationToRate
-    });
-    
-    console.log(`🧹 Session mise à jour - waitingForNote: false, waitingForComment: true`);
-    
-    // Demander commentaire (optionnel)
-    const letterNote = String.fromCharCode(64 + note); // 1=A, 2=B, 3=C, 4=D, 5=E
-    const message = `✅ Merci pour votre note ${letterNote} (${note}/5) ! ⭐
-
-Souhaitez-vous laisser un commentaire sur votre conducteur ? (optionnel)
-
-• Tapez votre commentaire
-• Ou tapez "passer" pour terminer`;
-    
-    console.log(`✅ RESPONSE handleNoteValidation - Message à envoyer: "${message}"`);
-    
-    // 🔧 CORRECTION : Retourner TwiML au lieu de JSON pour Twilio
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${message}</Message>
-</Response>`;
-    
-    console.log(`📤 TwiML généré: ${twiml}`);
-    
-    return new Response(twiml, {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-    });
-    
-  } catch (error) {
-    console.error('❌ Erreur handleNoteValidation:', error);
-    const errorMsg = "❌ Une erreur est survenue lors de la notation.";
-    const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-    return new Response(twimlError, {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-    });
-  }
-}
-
-async function handleCommentaire(clientPhone: string, commentaire: string): Promise<Response> {
-  try {
-    console.log(`💬 Traitement commentaire pour client ${clientPhone}`);
-    
-    const session = await getSession(clientPhone);
-    if (!session?.reservationToRate) {
-      const errorMsg = "❌ Erreur: Session non trouvée.";
-      const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-      return new Response(twimlError, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-    
-    let finalCommentaire = null;
-    
-    // Si pas "passer", sauvegarder le commentaire
-    if (commentaire.toLowerCase() !== 'passer') {
-      finalCommentaire = commentaire.substring(0, 500); // Limiter à 500 caractères
-    }
-    
-    // Sauvegarder commentaire + date dans la réservation
-    const updateResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?id=eq.${session.reservationToRate}`, {
-      method: 'PATCH',
-      headers: {
-        'apikey': workingApiKey,
-        'Authorization': `Bearer ${workingApiKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        commentaire: finalCommentaire,
-        date_add_commentaire: new Date().toISOString(), // 🎯 DÉCLENCHE TRIGGER REMERCIEMENT
-        updated_at: new Date().toISOString()
-      })
-    });
-    
-    if (!updateResponse.ok) {
-      console.error('❌ Erreur sauvegarde commentaire:', updateResponse.status);
-      const errorMsg = "❌ Erreur lors de la sauvegarde.";
-      const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-      return new Response(twimlError, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-    
-    // Nettoyer la session
-    await saveSession(clientPhone, {
-      ...session,
-      waitingForComment: false,
-      reservationToRate: undefined,
-      currentRating: undefined
-    });
-    
-    console.log(`✅ Commentaire sauvegardé pour réservation ${session.reservationToRate}`);
-    
-    // Le message de remerciement sera envoyé automatiquement par le trigger !
-    // Retourner une réponse vide car le trigger gère la notification
-    const emptyTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-</Response>`;
-    
-    return new Response(emptyTwiml, {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-    });
-    
-  } catch (error) {
-    console.error('❌ Erreur handleCommentaire:', error);
-    const errorMsg = "❌ Une erreur est survenue.";
-    const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-    return new Response(twimlError, {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-    });
-  }
-}
-
-async function prepareRatingSession(clientPhone: string, reservationId: string): Promise<void> {
-  try {
-    console.log(`📋 DEBUG prepareRatingSession - DÉBUT - Client: ${clientPhone}, Réservation: ${reservationId}`);
-    
-    const currentSession = await getSession(clientPhone) || {};
-    console.log(`📋 DEBUG prepareRatingSession - Session actuelle:`, JSON.stringify(currentSession));
-    
-    const newSession = {
-      ...currentSession,
-      waitingForNote: true,
-      waitingForComment: false,
-      reservationToRate: reservationId
-    };
-    
-    console.log(`📋 DEBUG prepareRatingSession - Nouvelle session à sauver:`, JSON.stringify(newSession));
-    
-    await saveSession(clientPhone, newSession);
-    
-    console.log(`🎯 Session préparée pour notation - Client: ${clientPhone}, Réservation: ${reservationId}`);
-    
-    // Vérification immédiate
-    const verifySession = await getSession(clientPhone);
-    console.log(`✅ DEBUG prepareRatingSession - Vérification après sauvegarde:`, JSON.stringify(verifySession));
-    console.log(`✅ DEBUG prepareRatingSession - waitingForNote = ${verifySession?.waitingForNote}`);
-    
-  } catch (error) {
-    console.error('❌ Erreur prepareRatingSession:', error);
-    console.error('❌ Stack trace:', error.stack);
-  }
-}
-
-async function getAvailableDrivers(
-  vehicleType: string, 
-  centerCoords?: {lat: number, lon: number}, 
-  radiusMeters: number = 5000
-): Promise<any[]> {
-  try {
-    if (!centerCoords) {
-      // Ancienne logique pour compatibilité
-      console.log(`🔍 Recherche conducteurs ${vehicleType} (tous)`);
-      const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/conducteurs_with_coords?vehicle_type=eq.${vehicleType}&statut=eq.disponible&select=*`, {
-        headers: {
-          'Authorization': `Bearer ${workingApiKey}`,
-          'apikey': workingApiKey,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erreur API: ${response.status}`);
-      }
-      
-      const conducteurs = await response.json();
-      console.log(`📋 ${conducteurs.length} conducteur(s) ${vehicleType} trouvé(s)`);
-      return conducteurs;
-    }
-    
-    // Nouvelle logique avec géolocalisation
-    console.log(`🔍 Recherche conducteurs ${vehicleType} dans ${radiusMeters}m de ${centerCoords.lat},${centerCoords.lon}`);
-    
-    // Récupérer tous les conducteurs du type
+    console.log(`🔍 Recherche conducteurs ${vehicleType}`);
     const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/conducteurs_with_coords?vehicle_type=eq.${vehicleType}&statut=eq.disponible&select=*`, {
       headers: {
         'Authorization': `Bearer ${workingApiKey}`,
@@ -722,45 +456,13 @@ async function getAvailableDrivers(
       throw new Error(`Erreur API: ${response.status}`);
     }
     
-    const allConducteurs = await response.json();
-    
-    // Filtrer par distance
-    const conducteursProches = allConducteurs.filter((conducteur: any) => {
-      if (!conducteur.latitude || !conducteur.longitude) return false;
-      
-      const distance = calculateDistance(
-        centerCoords.lat,
-        centerCoords.lon,
-        conducteur.latitude,
-        conducteur.longitude
-      ) * 1000; // Convertir en mètres
-      
-      conducteur.distance = distance; // Ajouter la distance pour tri
-      return distance <= radiusMeters;
-    });
-    
-    // Trier par distance croissante
-    conducteursProches.sort((a: any, b: any) => a.distance - b.distance);
-    
-    console.log(`📋 ${conducteursProches.length}/${allConducteurs.length} conducteur(s) ${vehicleType} dans ${radiusMeters}m`);
-    return conducteursProches;
+    const conducteurs = await response.json();
+    console.log(`📋 ${conducteurs.length} conducteur(s) ${vehicleType} trouvé(s)`);
+    return conducteurs;
   } catch (error) {
     console.error('❌ Exception récupération conducteurs:', error);
     throw error;
   }
-}
-
-// Fonction pour extraire les coordonnées d'un POINT PostGIS
-function getCoordinatesFromPosition(position: string): {latitude: number, longitude: number} {
-  // Format: POINT(longitude latitude)
-  const match = position.match(/POINT\(([^ ]+) ([^ ]+)\)/);
-  if (match) {
-    return {
-      longitude: parseFloat(match[1]),
-      latitude: parseFloat(match[2])
-    };
-  }
-  throw new Error(`Format de position invalide: ${position}`);
 }
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -1645,30 +1347,6 @@ async function handleTextMessage(from: string, body: string, latitude?: string, 
   
   let responseMessage = '';
   
-  // 🌟 GESTION SYSTÈME NOTATION CONDUCTEUR
-  // Vérifier si c'est une note par lettre (A-E) et que l'utilisateur attend une note
-  console.log(`🔍 DEBUG NOTATION - messageText: "${messageText}", match A-E: ${messageText.match(/^[A-Ea-e]$/i)}, waitingForNote: ${session?.waitingForNote}`);
-  
-  if (messageText.match(/^[A-Ea-e]$/i)) {
-    console.log(`🔍 DEBUG NOTATION - Lettre détectée: "${messageText}"`);
-    console.log(`🔍 DEBUG NOTATION - Session complète:`, JSON.stringify(session));
-    console.log(`🔍 DEBUG NOTATION - waitingForNote = ${session?.waitingForNote} (type: ${typeof session?.waitingForNote})`);
-    
-    if (session?.waitingForNote) {
-      const noteValue = messageText.toUpperCase().charCodeAt(0) - 64; // A=1, B=2, C=3, D=4, E=5
-      console.log(`⭐ Note reçue: ${messageText} (${noteValue}/5) pour client: ${clientPhone}`);
-      return await handleNoteValidation(clientPhone, noteValue);
-    } else {
-      console.log(`⚠️ DEBUG NOTATION - Lettre détectée mais waitingForNote=false ou undefined`);
-    }
-  }
-  
-  // Vérifier si en attente de commentaire
-  if (session?.waitingForComment) {
-    console.log(`💬 Commentaire reçu pour client: ${clientPhone}`);
-    return await handleCommentaire(clientPhone, messageText);
-  }
-  
   if (!dbTest.connected) {
     console.log('❌ Base de données Supabase indisponible');
     if (dbTest.status === 401) {
@@ -1695,39 +1373,6 @@ Status: ${dbTest.status || 'unknown'}
 
 Réessayez plus tard ou contactez le support.`;
     }
-  
-  // 🔄 HANDLER GLOBAL RESET - Prioritaire sur tous les autres
-  } else if (messageText.includes('taxi') || messageText.toLowerCase() === 'annuler') {
-    console.log(`🔄 RESET WORKFLOW - Commande détectée: "${messageText}"`);
-    
-    // Nettoyer session précédente
-    try {
-      await fetchWithRetry(`${SUPABASE_URL}/rest/v1/sessions?client_phone=eq.${encodeURIComponent(clientPhone)}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${workingApiKey}`,
-          'apikey': workingApiKey,
-          'Content-Type': 'application/json'
-        }
-      });
-      console.log(`🧹 Session précédente nettoyée pour ${clientPhone}`);
-    } catch (error) {
-      console.error('❌ Erreur suppression session:', error);
-    }
-    
-    await saveSession(clientPhone, {
-      vehicleType: null,
-      etat: 'initial'
-    });
-    
-    responseMessage = `🚕 Bienvenue chez LokoTaxi!
-
-Quel type de taxi souhaitez-vous ?
-• 'moto' - Transport rapide en moto-taxi
-• 'voiture' - Transport en voiture
-
-(Répondez par 'moto' ou 'voiture')`;
-    
   } else if (session.etat === 'confirmation_depart') {
     // 🎯 HANDLER CONFIRMATION DÉPART - Déplacé avant hasLocation pour éviter le bug
     console.log(`📝 DEBUG - WORKFLOW TEXTE - État confirmation_depart détecté`);
@@ -1748,18 +1393,17 @@ Pour calculer le prix de votre course, partagez votre position GPS:
 Ensuite, nous vous demanderons votre destination.`;
       
     } else if (messageText.toLowerCase() === 'non') {
-      // NOUVEAU: Handler pour réservation tierce
       await saveSession(clientPhone, {
         ...session,
-        etat: 'depart_autre_personne',
-        reservationPourAutrui: true
+        etat: 'choix_depart_personnalise'
       });
       
-      responseMessage = `📍 RÉSERVATION POUR UNE AUTRE PERSONNE
+      responseMessage = `📍 **RÉSERVATION POUR QUELQU'UN D'AUTRE**
 
-🔍 Où se trouve la personne à récupérer ?
+Fonctionnalité 'départ personnalisé' à implémenter.
 
-Tapez le nom du lieu de départ (ex: Hôpital Donka, Marché Madina, Kipe Centre...)`;
+Pour recommencer une réservation normale: écrivez 'taxi'`;
+      
     } else {
       responseMessage = `🤔 **CONFIRMATION REQUISE**
 
@@ -1820,36 +1464,13 @@ Cette réservation est-elle pour vous ?
 Pour commencer: écrivez 'taxi'`;
       } else if (session.etat === 'vehicule_choisi' || session.etat === 'attente_position_planifie') {
         console.log(`📝 DEBUG - WORKFLOW TEXTE/TEMPOREL - État ${session.etat} détecté, sauvegarde position...`);
-        
-        // ✅ NOUVELLE PARTIE: Vérifier conducteurs dans 5km
-        const conducteursProches = await getAvailableDrivers(
-          session.vehicleType!, 
-          {lat, lon}, 
-          5000
-        );
-        
-        if (conducteursProches.length === 0) {
-          // Aucun conducteur proche
-          await saveSession(clientPhone, {
-            ...session,
-            positionClient: `POINT(${lon} ${lat})`,
-            etat: 'aucun_conducteur_proximite',
-            conducteursDisponibles: 0
-          });
-          
-          responseMessage = `❌ Désolé, aucun conducteur ${session.vehicleType!.toUpperCase()} disponible dans un rayon de 5km
-
-• Tapez "taxi" pour recommencer`;
-        } else {
-          // Conducteurs trouvés - continuer normalement
         const nouvelEtat = session.temporalPlanning ? 'position_recue_planifiee' : 'position_recue';
         console.log(`📅 DEBUG - Nouveau état: ${nouvelEtat} (temporel: ${session.temporalPlanning})`);
         
         await saveSession(clientPhone, {
           ...session,
           positionClient: `POINT(${lon} ${lat})`,
-          etat: nouvelEtat,
-          conducteursDisponibles: conducteursProches.length
+          etat: nouvelEtat
         });
         
         // Gestion spéciale pour les réservations temporelles avec auto_detect
@@ -1882,8 +1503,7 @@ Pour commencer: écrivez 'taxi'`;
             ? `📅 **PLANIFIÉ:** ${session.plannedDate} à ${session.plannedHour}h\n`
             : '';
           
-          responseMessage = `📍 Position reçue!
-✅ ${conducteursProches.length} conducteur(s) ${session.vehicleType!.toUpperCase()} disponible(s) à proximité!
+          responseMessage = `📍 Position reçue! Merci.
 
 ${temporalInfo}🏁 Quelle est votre destination ?
 
@@ -1891,7 +1511,6 @@ Exemples de destinations disponibles:
 ${suggestionsText}
 
 Tapez le nom de votre destination:`;
-        }
         }
       } else {
         console.log(`❌ DEBUG - État session invalide: "${session.etat}"`);
@@ -1919,6 +1538,34 @@ Tapez le nom de votre destination:`;
 ${error.message}
 Pour recommencer: écrivez 'taxi'`;
     }
+  } else if (messageText.includes('taxi')) {
+    // Nettoyer session précédente
+    try {
+      await fetchWithRetry(`${SUPABASE_URL}/rest/v1/sessions?client_phone=eq.${encodeURIComponent(clientPhone)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log(`🧹 Session précédente nettoyée pour ${clientPhone}`);
+    } catch (error) {
+      console.error('❌ Erreur suppression session:', error);
+    }
+    
+    await saveSession(clientPhone, {
+      vehicleType: null,
+      etat: 'initial'
+    });
+    
+    responseMessage = `🚕 Bienvenue chez LokoTaxi!
+
+Quel type de taxi souhaitez-vous ?
+• 'moto' - Transport rapide en moto-taxi
+• 'voiture' - Transport en voiture
+
+(Répondez par 'moto' ou 'voiture')`;
   } else if ((session.etat === 'position_recue' || session.etat === 'position_recue_planifiee') && !hasLocation) {
     // L'utilisateur tape sa destination
     const adresse = await searchAdresse(body);
@@ -1971,130 +1618,6 @@ Confirmez-vous cette réservation ?
 • Répondez 'oui' pour confirmer
 • Répondez 'non' pour annuler`;
     }
-  
-  // NOUVEAU: Handler recherche lieu départ pour réservation tierce
-  } else if (session.etat === 'depart_autre_personne' && !hasLocation) {
-    const lieuDepart = await searchAdresse(messageText);
-    
-    if (!lieuDepart) {
-      // Lieu non trouvé - suggestions
-      const suggestions = await getSuggestionsIntelligentes(messageText, 5);
-      const suggestionsText = suggestions.map((s, i) => 
-        `${i + 1}️⃣ ${s.nom}`
-      ).join('\n');
-      
-      responseMessage = `❓ Lieu non trouvé: "${messageText}"
-
-Suggestions proches:
-${suggestionsText}
-
-Tapez le numéro de votre choix ou essayez un autre nom`;
-    } else {
-      // Lieu trouvé - vérifier conducteurs
-      const conducteursProches = await getAvailableDrivers(
-        session.vehicleType!,
-        {lat: lieuDepart.latitude, lon: lieuDepart.longitude},
-        5000
-      );
-      
-      if (conducteursProches.length === 0) {
-        // Aucun conducteur au lieu
-        await saveSession(clientPhone, {
-          ...session,
-          lieuDepartNom: lieuDepart.nom,
-          lieuDepartId: lieuDepart.id,
-          lieuDepartPosition: `POINT(${lieuDepart.longitude} ${lieuDepart.latitude})`,
-          etat: 'aucun_conducteur_lieu_depart'
-        });
-        
-        responseMessage = `✅ Lieu trouvé: ${lieuDepart.nom}
-📍 Position: ${lieuDepart.latitude.toFixed(3)}°N, ${lieuDepart.longitude.toFixed(3)}°W
-
-❌ Désolé, aucun conducteur ${session.vehicleType!.toUpperCase()} disponible dans un rayon de 5km de ${lieuDepart.nom}
-
-Options disponibles:
-• Tapez un autre lieu de départ
-• Tapez "moto" pour essayer un moto-taxi
-• Tapez "elargir" pour chercher dans un rayon de 10km
-• Tapez "taxi" pour recommencer`;
-      } else {
-        // Conducteurs trouvés
-        await saveSession(clientPhone, {
-          ...session,
-          lieuDepartNom: lieuDepart.nom,
-          lieuDepartId: lieuDepart.id,
-          lieuDepartPosition: `POINT(${lieuDepart.longitude} ${lieuDepart.latitude})`,
-          etat: 'lieu_depart_trouve',
-          conducteursDisponibles: conducteursProches.length
-        });
-        
-        responseMessage = `✅ Lieu trouvé: ${lieuDepart.nom}
-📍 Position: ${lieuDepart.latitude.toFixed(3)}°N, ${lieuDepart.longitude.toFixed(3)}°W
-
-🔍 Vérification des conducteurs à proximité...
-
-✅ ${conducteursProches.length} conducteur(s) ${session.vehicleType!.toUpperCase()} disponible(s) près de ${lieuDepart.nom}!
-
-🏁 Quelle est la destination finale ?
-
-Tapez le nom du lieu où vous voulez aller.`;
-      }
-    }
-    
-  // Handler pour destination finale après lieu départ trouvé (réservation tierce)
-  } else if (session.etat === 'lieu_depart_trouve' && !hasLocation) {
-    const destination = await searchAdresse(messageText);
-    
-    if (!destination) {
-      // Destination non trouvée
-      const suggestions = await getSuggestionsIntelligentes(messageText, 5);
-      const suggestionsText = suggestions.map((s, i) => 
-        `${i + 1}️⃣ ${s.nom}`
-      ).join('\n');
-      
-      responseMessage = `❓ Destination non trouvée: "${messageText}"
-
-Suggestions disponibles:
-${suggestionsText}
-
-Tapez le numéro ou essayez un autre nom`;
-    } else {
-      // Calculer distance et prix depuis lieu de départ
-      const departCoords = await getCoordinatesFromPosition(session.lieuDepartPosition!);
-      const distanceKm = calculateDistance(
-        departCoords.latitude, 
-        departCoords.longitude,
-        destination.latitude, 
-        destination.longitude
-      );
-      
-      const prixInfo = await calculerPrixCourse(session.vehicleType!, distanceKm);
-      
-      await saveSession(clientPhone, {
-        ...session,
-        destinationNom: destination.nom,
-        destinationId: destination.id,
-        destinationPosition: `POINT(${destination.longitude} ${destination.latitude})`,
-        distanceKm: distanceKm,
-        prixEstime: prixInfo.prix_total,
-        etat: 'prix_calcule_tiers'
-      });
-      
-      responseMessage = `📍 RÉSUMÉ DE LA COURSE (Réservation tierce)
-========================================
-🚗 Type: ${session.vehicleType!.toUpperCase()}
-👤 Pour: Une autre personne
-📍 Départ: ${session.lieuDepartNom}
-🏁 Destination: ${destination.nom}
-📏 Distance: ${distanceKm.toFixed(1)} km
-💰 Prix estimé: ${prixInfo.prix_total.toLocaleString('fr-FR')} GNF
-
-⏱️ Temps estimé: ${Math.ceil(distanceKm * 4)} minutes
-
-Confirmez-vous cette réservation ?
-(Répondez "oui" pour confirmer)`;
-    }
-    
   } else if (session.etat === 'position_recue_avec_destination_ia' && !hasLocation) {
     // Gestion de la confirmation de destination IA
     if (messageText === 'oui' || messageText === 'confirmer') {
@@ -2190,13 +1713,10 @@ Confirmez-vous cette réservation ?
 • Répondez 'non' pour annuler`;
       }
     }
-  } else if ((messageText === 'oui' || messageText === 'confirmer') && (session.etat === 'prix_calcule' || session.etat === 'prix_calcule_planifie' || session.etat === 'prix_calcule_tiers')) {
+  } else if ((messageText === 'oui' || messageText === 'confirmer') && (session.etat === 'prix_calcule' || session.etat === 'prix_calcule_planifie')) {
     // Confirmation et recherche conducteur
-    const positionDepart = session.etat === 'prix_calcule_tiers' && session.lieuDepartPosition
-      ? await getCoordinatesFromPosition(session.lieuDepartPosition)
-      : await getClientCoordinates(normalizePhone(from));
-    
-    const nearestDriver = await findNearestDriver(session.vehicleType!, positionDepart.latitude, positionDepart.longitude);
+    const clientCoords = await getClientCoordinates(normalizePhone(from));
+    const nearestDriver = await findNearestDriver(session.vehicleType!, clientCoords.latitude, clientCoords.longitude);
     
     if (!nearestDriver) {
       responseMessage = `😔 Désolé, aucun ${session.vehicleType} disponible actuellement.
@@ -2206,15 +1726,12 @@ Veuillez réessayer dans quelques minutes.
 Pour recommencer: écrivez 'taxi'`;
     } else {
       // Sauvegarder réservation
-      const departCoords = session.etat === 'prix_calcule_tiers' && session.lieuDepartPosition
-        ? await getCoordinatesFromPosition(session.lieuDepartPosition)
-        : await getClientCoordinates(normalizePhone(from));
-      
+      const clientCoords = await getClientCoordinates(normalizePhone(from));
       const reservationData = {
         client_phone: clientPhone,
         conducteur_id: null,
         vehicle_type: session.vehicleType,
-        position_depart: `POINT(${departCoords.longitude} ${departCoords.latitude})`,
+        position_depart: `POINT(${clientCoords.longitude} ${clientCoords.latitude})`,
         destination_nom: session.destinationNom,
         destination_id: session.destinationId,
         position_arrivee: session.destinationPosition,
@@ -2255,14 +1772,10 @@ Pour recommencer: écrivez 'taxi'`;
             etat: 'confirme'
           });
           
-          const tierceInfo = session.etat === 'prix_calcule_tiers' 
-            ? `👤 Pour: Une autre personne\n📍 Départ: ${session.lieuDepartNom}\n`
-            : '';
-          
           responseMessage = `⏳ **RÉSERVATION EN ATTENTE**
 
 🚖 Votre demande de ${session.vehicleType} a été enregistrée
-${tierceInfo}📍 Destination: ${session.destinationNom}
+📍 Destination: ${session.destinationNom}
 💰 Prix: ${session.prixEstime!.toLocaleString('fr-FR')} GNF
 
 🔍 **Recherche d'un conducteur disponible...**
@@ -2298,41 +1811,6 @@ Veuillez réessayer plus tard.`;
         console.error('❌ Exception sauvegarde:', error);
       }
     }
-  // Handler pour élargir le rayon de recherche
-  } else if ((session.etat === 'aucun_conducteur_proximite' || session.etat === 'aucun_conducteur_lieu_depart') 
-      && messageText === 'elargir') {
-    
-    const centerCoords = session.etat === 'aucun_conducteur_proximite' 
-      ? await getClientCoordinates(clientPhone)
-      : await getCoordinatesFromPosition(session.lieuDepartPosition!);
-    
-    const conducteursElargis = await getAvailableDrivers(
-      session.vehicleType!,
-      centerCoords,
-      10000 // 10km
-    );
-    
-    if (conducteursElargis.length > 0) {
-      await saveSession(clientPhone, {
-        ...session,
-        etat: session.etat === 'aucun_conducteur_proximite' ? 'position_recue' : 'lieu_depart_trouve',
-        conducteursDisponibles: conducteursElargis.length,
-        rayonRecherche: 10000
-      });
-      
-      responseMessage = `✅ ${conducteursElargis.length} conducteur(s) trouvé(s) dans un rayon de 10km!
-
-Le conducteur le plus proche est à ${(conducteursElargis[0].distance / 1000).toFixed(1)}km
-
-Souhaitez-vous continuer avec cette recherche élargie ?
-(Répondez "oui" pour continuer)`;
-    } else {
-      responseMessage = `❌ Aucun conducteur trouvé même dans un rayon de 10km.
-
-Nous vous conseillons de réessayer dans quelques minutes.
-Tapez "taxi" pour recommencer avec d'autres options.`;
-    }
-    
   } else if ((messageText === 'non' || messageText === 'annuler') && (session.etat === 'prix_calcule' || session.etat === 'prix_calcule_planifie')) {
     // Annulation
     await fetchWithRetry(`${SUPABASE_URL}/rest/v1/sessions?client_phone=eq.${encodeURIComponent(clientPhone)}`, {
@@ -2705,24 +2183,42 @@ ${suggestions.map((lieu, i) => `${i + 1}. **${lieu.nom}** (${lieu.ville})`).join
     
   } else if (messageText === 'moto' || messageText === 'voiture') {
     try {
-      // ✅ NOUVELLE LOGIQUE - Plus de vérification conducteurs ici
-      await saveSession(clientPhone, {
-        vehicleType: messageText,
-        etat: 'confirmation_depart'
+      const conducteursDisponibles = await getAvailableDrivers(messageText);
+      if (conducteursDisponibles.length === 0) {
+        responseMessage = `😔 Désolé, aucun ${messageText} n'est disponible actuellement.
+
+Causes possibles:
+• Tous nos conducteurs ${messageText} sont occupés
+• Heure de pointe avec forte demande
+• Aucun conducteur ${messageText} enregistré dans le système
+
+Solutions:
+• Essayez l'autre type: ${messageText === 'moto' ? 'voiture' : 'moto'}
+• Réessayez dans quelques minutes
+• Contactez le support si le problème persiste
+
+Pour recommencer: écrivez 'taxi'`;
+      } else {
+        await saveSession(clientPhone, {
+          vehicleType: messageText,
+          etat: 'confirmation_depart'
         });
         
         responseMessage = `📍 Parfait! Vous avez choisi: ${messageText.toUpperCase()}
 
-🤔 Cette réservation est-elle pour vous ?
+✅ ${conducteursDisponibles.length} conducteur(s) ${messageText} disponible(s)
 
-Répondez:
+🤔 **Cette réservation est-elle pour vous ?**
+
+**Répondez:**
 • "oui" → Partager votre position GPS
 • "non" → Réservation pour quelqu'un d'autre
 
-Ou tapez directement 'taxi' pour recommencer.`;
+**Ou tapez directement 'taxi' pour recommencer.**`;
+      }
     } catch (error) {
-      console.error(`❌ Erreur choix véhicule ${messageText}:`, error);
-      responseMessage = `❌ Erreur technique lors du choix du véhicule.
+      console.error(`❌ Erreur vérification conducteurs ${messageText}:`, error);
+      responseMessage = `❌ Erreur technique lors de la vérification des conducteurs.
 
 Impossible d'accéder à la base de données.
 Réessayez dans quelques minutes.
@@ -2798,26 +2294,6 @@ Pour une nouvelle demande: écrivez 'taxi'`;
     console.log(`🔴 DEBUG - messageText: "${messageText}"`);
     console.log(`🔴 DEBUG - hasLocation: ${hasLocation}`);
     console.log(`🔴 DEBUG - session: ${JSON.stringify(session)}`);
-    
-    // 🛡️ PROTECTION : Ignorer les messages automatiques du service C#
-    if (messageText.includes('MERCI POUR VOTRE ÉVALUATION') || 
-        messageText.includes('🙏') || 
-        messageText.includes('CONDUCTEUR ASSIGNÉ') ||
-        messageText.includes('améliorer notre service') ||
-        messageText.includes('Votre avis nous aide') ||
-        messageText.includes('Merci de faire confiance')) {
-      console.log(`🛡️ IGNORÉ - Message automatique du service C# détecté: "${messageText}"`);
-      
-      // Retourner TwiML vide au lieu de texte plain
-      const emptyTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-</Response>`;
-      
-      return new Response(emptyTwiml, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
     
     responseMessage = `🚕 Bienvenue chez LokoTaxi Conakry!
 
@@ -2981,94 +2457,8 @@ serve(async (req) => {
       });
     }
 
-    // Nouvelle action : Préparer session pour notation (requête JSON du service C#)
-    if (action === 'prepareRating') {
-      try {
-        const requestData = await req.json();
-        const { clientPhone, reservationId } = requestData;
-        
-        console.log(`🎯 Action prepareRating - Client: ${clientPhone}, Réservation: ${reservationId}`);
-        
-        if (!clientPhone || !reservationId) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'clientPhone et reservationId requis' 
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Appeler la fonction prepareRatingSession
-        await prepareRatingSession(clientPhone, reservationId);
-        
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: `Session préparée pour notation - Client: ${clientPhone}` 
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-        
-      } catch (error) {
-        console.error('❌ Erreur prepareRating:', error);
-        return new Response(JSON.stringify({ 
-          success: false, 
-          error: `Erreur lors de la préparation: ${error.message}` 
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-    }
-
-    // Parsing des données Twilio - DÉPLACER ICI POUR ÉVITER L'ERREUR
+    // Parsing des données Twilio
     const contentType = req.headers.get('Content-Type') || '';
-    
-    // Gestion spéciale pour les requêtes JSON (service C#)
-    if (req.method === 'POST' && contentType.includes('application/json')) {
-      try {
-        const requestData = await req.json();
-        
-        if (requestData.action === 'prepareRating') {
-          const { clientPhone, reservationId } = requestData;
-          
-          console.log(`🎯 JSON prepareRating - Client: ${clientPhone}, Réservation: ${reservationId}`);
-          
-          if (!clientPhone || !reservationId) {
-            return new Response(JSON.stringify({ 
-              success: false, 
-              error: 'clientPhone et reservationId requis' 
-            }), {
-              status: 400,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
-
-          // Appeler la fonction prepareRatingSession
-          await prepareRatingSession(clientPhone, reservationId);
-          
-          return new Response(JSON.stringify({ 
-            success: true, 
-            message: `Session préparée pour notation - Client: ${clientPhone}` 
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-      } catch (error) {
-        console.error('❌ Erreur JSON prepareRating:', error);
-        return new Response(JSON.stringify({ 
-          success: false, 
-          error: `Erreur lors de la préparation JSON: ${error.message}` 
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-    }
-
-    // Variables Twilio (contentType déjà déclaré plus haut)
     let from = '';
     let body = '';
     let latitude = '';

@@ -57,7 +57,24 @@
       "Bash(supabase secrets:*)",
       "Bash(supabase auth:*)",
       "Bash(supabase login:*)",
-      "Bash(del \"C:\\Users\\diall\\Documents\\LokoTaxi\\bot_tester.py\")"
+      "Bash(del \"C:\\Users\\diall\\Documents\\LokoTaxi\\bot_tester.py\")",
+      "Bash(C:UsersdiallDocumentsLokoTaxitest_bot_simple.bat)",
+      "Bash(supabase logs:*)",
+      "Bash(supabase status:*)",
+      "Bash(psql:*)",
+      "Bash(cmd /c \"copy index.ts index_backup_31-07-2025-18h-35mins.ts\")",
+      "Bash(move PLAN_ARCHITECTURE_RECHERCHE.md PLAN_ARCHITECTURE_RECHERCHE_ADDRESSE_DB_GOOGLE_PLACE.md)",
+      "Bash(deno run:*)",
+      "Bash(dir *search*.ts)",
+      "Bash(Get-Date -Format \"dd-MM-yyyy-HHh-mmins\")",
+      "Bash(dir:*)",
+      "Bash($timestamp = Get-Date -Format \"dd-MM-yyyy-HHh-mmins\")",
+      "Bash(echo:*)",
+      "Bash(npx tsc:*)",
+      "Bash(deno check:*)",
+      "Bash($timestamp = Get-Date -Format \"MM_yyyy_HHh_mmins\")",
+      "Bash(git rm:*)",
+      "Bash(true)"
     ],
     "deny": []
   }

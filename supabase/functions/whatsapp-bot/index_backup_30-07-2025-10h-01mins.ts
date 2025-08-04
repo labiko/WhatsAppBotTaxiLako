@@ -60,11 +60,6 @@ interface Session {
   // Suggestions multiples
   suggestionsDepart?: string
   suggestionsDestination?: string
-  // 🌟 SYSTÈME NOTATION CONDUCTEUR
-  waitingForNote?: boolean
-  waitingForComment?: boolean
-  reservationToRate?: string
-  currentRating?: number
 }
 
 // =================================================================
@@ -300,22 +295,11 @@ async function saveSession(phone: string, data: any): Promise<void> {
       // Suggestions multiples
       suggestions_depart: data.suggestionsDepart || null,
       suggestions_destination: data.suggestionsDestination || null,
-      // 🌟 SYSTÈME NOTATION CONDUCTEUR
-      waiting_for_note: data.waitingForNote || false,
-      waiting_for_comment: data.waitingForComment || false,
-      reservation_to_rate: data.reservationToRate || null,
-      current_rating: data.currentRating || null,
       updated_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() // 4 heures pour éviter problèmes timezone
     };
 
     console.log(`🚨 DEBUG - sessionData construit:`, JSON.stringify(sessionData, null, 2));
-    
-    // 🌟 LOGS SPÉCIFIQUES SYSTÈME NOTATION
-    console.log(`🌟 DEBUG NOTATION - waiting_for_note: ${sessionData.waiting_for_note} (from data: ${data.waitingForNote})`);
-    console.log(`🌟 DEBUG NOTATION - waiting_for_comment: ${sessionData.waiting_for_comment} (from data: ${data.waitingForComment})`);
-    console.log(`🌟 DEBUG NOTATION - reservation_to_rate: ${sessionData.reservation_to_rate} (from data: ${data.reservationToRate})`);
-    console.log(`🌟 DEBUG NOTATION - current_rating: ${sessionData.current_rating} (from data: ${data.currentRating})`);
 
     // CORRECTION : Utiliser UPSERT pour créer OU mettre à jour
     console.log(`💾 DEBUG - UPSERT session pour ${phone}`);
@@ -438,11 +422,6 @@ async function getSession(phone: string): Promise<Session> {
           // Suggestions multiples
           suggestionsDepart: session.suggestions_depart,
           suggestionsDestination: session.suggestions_destination,
-          // 🌟 SYSTÈME NOTATION CONDUCTEUR
-          waitingForNote: session.waiting_for_note,
-          waitingForComment: session.waiting_for_comment,
-          reservationToRate: session.reservation_to_rate,
-          currentRating: session.current_rating,
           timestamp: new Date(session.updated_at).getTime()
         };
         console.log(`🔍 DEBUG getSession - Session retournée:`, JSON.stringify(result));
@@ -460,224 +439,6 @@ async function getSession(phone: string): Promise<Session> {
   
   console.log(`🔍 DEBUG getSession - Aucune session trouvée, retour {}`);
   return {};
-}
-
-// =================================================================
-// 🌟 FONCTIONS SYSTÈME NOTATION CONDUCTEUR
-// =================================================================
-
-async function handleNoteValidation(clientPhone: string, note: number): Promise<Response> {
-  try {
-    console.log(`⭐ Traitement note ${note} pour client ${clientPhone}`);
-    
-    // Récupérer la session
-    const session = await getSession(clientPhone);
-    if (!session?.reservationToRate) {
-      const errorMsg = "❌ Erreur: Aucune réservation à noter trouvée.";
-      const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-      return new Response(twimlError, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-    
-    // Sauvegarder la note dans la réservation
-    const updateResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?id=eq.${session.reservationToRate}`, {
-      method: 'PATCH',
-      headers: {
-        'apikey': workingApiKey,
-        'Authorization': `Bearer ${workingApiKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        note_conducteur: note,
-        updated_at: new Date().toISOString()
-      })
-    });
-    
-    if (!updateResponse.ok) {
-      console.error('❌ Erreur sauvegarde note:', updateResponse.status);
-      const errorMsg = "❌ Erreur lors de la sauvegarde de votre note.";
-      const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-      return new Response(twimlError, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-    
-    // Mettre à jour la session pour attendre commentaire
-    await saveSession(clientPhone, {
-      ...session,
-      waitingForNote: false,
-      waitingForComment: true,
-      currentRating: note,
-      reservationToRate: session.reservationToRate
-    });
-    
-    console.log(`🧹 Session mise à jour - waitingForNote: false, waitingForComment: true`);
-    
-    // Demander commentaire (optionnel)
-    const letterNote = String.fromCharCode(64 + note); // 1=A, 2=B, 3=C, 4=D, 5=E
-    const message = `✅ Merci pour votre note ${letterNote} (${note}/5) ! ⭐
-
-Souhaitez-vous laisser un commentaire sur votre conducteur ? (optionnel)
-
-• Tapez votre commentaire
-• Ou tapez "passer" pour terminer`;
-    
-    console.log(`✅ RESPONSE handleNoteValidation - Message à envoyer: "${message}"`);
-    
-    // 🔧 CORRECTION : Retourner TwiML au lieu de JSON pour Twilio
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${message}</Message>
-</Response>`;
-    
-    console.log(`📤 TwiML généré: ${twiml}`);
-    
-    return new Response(twiml, {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-    });
-    
-  } catch (error) {
-    console.error('❌ Erreur handleNoteValidation:', error);
-    const errorMsg = "❌ Une erreur est survenue lors de la notation.";
-    const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-    return new Response(twimlError, {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-    });
-  }
-}
-
-async function handleCommentaire(clientPhone: string, commentaire: string): Promise<Response> {
-  try {
-    console.log(`💬 Traitement commentaire pour client ${clientPhone}`);
-    
-    const session = await getSession(clientPhone);
-    if (!session?.reservationToRate) {
-      const errorMsg = "❌ Erreur: Session non trouvée.";
-      const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-      return new Response(twimlError, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-    
-    let finalCommentaire = null;
-    
-    // Si pas "passer", sauvegarder le commentaire
-    if (commentaire.toLowerCase() !== 'passer') {
-      finalCommentaire = commentaire.substring(0, 500); // Limiter à 500 caractères
-    }
-    
-    // Sauvegarder commentaire + date dans la réservation
-    const updateResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?id=eq.${session.reservationToRate}`, {
-      method: 'PATCH',
-      headers: {
-        'apikey': workingApiKey,
-        'Authorization': `Bearer ${workingApiKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        commentaire: finalCommentaire,
-        date_add_commentaire: new Date().toISOString(), // 🎯 DÉCLENCHE TRIGGER REMERCIEMENT
-        updated_at: new Date().toISOString()
-      })
-    });
-    
-    if (!updateResponse.ok) {
-      console.error('❌ Erreur sauvegarde commentaire:', updateResponse.status);
-      const errorMsg = "❌ Erreur lors de la sauvegarde.";
-      const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-      return new Response(twimlError, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-    
-    // Nettoyer la session
-    await saveSession(clientPhone, {
-      ...session,
-      waitingForComment: false,
-      reservationToRate: undefined,
-      currentRating: undefined
-    });
-    
-    console.log(`✅ Commentaire sauvegardé pour réservation ${session.reservationToRate}`);
-    
-    // Le message de remerciement sera envoyé automatiquement par le trigger !
-    // Retourner une réponse vide car le trigger gère la notification
-    const emptyTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-</Response>`;
-    
-    return new Response(emptyTwiml, {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-    });
-    
-  } catch (error) {
-    console.error('❌ Erreur handleCommentaire:', error);
-    const errorMsg = "❌ Une erreur est survenue.";
-    const twimlError = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${errorMsg}</Message>
-</Response>`;
-    return new Response(twimlError, {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-    });
-  }
-}
-
-async function prepareRatingSession(clientPhone: string, reservationId: string): Promise<void> {
-  try {
-    console.log(`📋 DEBUG prepareRatingSession - DÉBUT - Client: ${clientPhone}, Réservation: ${reservationId}`);
-    
-    const currentSession = await getSession(clientPhone) || {};
-    console.log(`📋 DEBUG prepareRatingSession - Session actuelle:`, JSON.stringify(currentSession));
-    
-    const newSession = {
-      ...currentSession,
-      waitingForNote: true,
-      waitingForComment: false,
-      reservationToRate: reservationId
-    };
-    
-    console.log(`📋 DEBUG prepareRatingSession - Nouvelle session à sauver:`, JSON.stringify(newSession));
-    
-    await saveSession(clientPhone, newSession);
-    
-    console.log(`🎯 Session préparée pour notation - Client: ${clientPhone}, Réservation: ${reservationId}`);
-    
-    // Vérification immédiate
-    const verifySession = await getSession(clientPhone);
-    console.log(`✅ DEBUG prepareRatingSession - Vérification après sauvegarde:`, JSON.stringify(verifySession));
-    console.log(`✅ DEBUG prepareRatingSession - waitingForNote = ${verifySession?.waitingForNote}`);
-    
-  } catch (error) {
-    console.error('❌ Erreur prepareRatingSession:', error);
-    console.error('❌ Stack trace:', error.stack);
-  }
 }
 
 async function getAvailableDrivers(
@@ -1644,30 +1405,6 @@ async function handleTextMessage(from: string, body: string, latitude?: string, 
   console.log(`📋 DEBUG Session.etat: ${session.etat}`);
   
   let responseMessage = '';
-  
-  // 🌟 GESTION SYSTÈME NOTATION CONDUCTEUR
-  // Vérifier si c'est une note par lettre (A-E) et que l'utilisateur attend une note
-  console.log(`🔍 DEBUG NOTATION - messageText: "${messageText}", match A-E: ${messageText.match(/^[A-Ea-e]$/i)}, waitingForNote: ${session?.waitingForNote}`);
-  
-  if (messageText.match(/^[A-Ea-e]$/i)) {
-    console.log(`🔍 DEBUG NOTATION - Lettre détectée: "${messageText}"`);
-    console.log(`🔍 DEBUG NOTATION - Session complète:`, JSON.stringify(session));
-    console.log(`🔍 DEBUG NOTATION - waitingForNote = ${session?.waitingForNote} (type: ${typeof session?.waitingForNote})`);
-    
-    if (session?.waitingForNote) {
-      const noteValue = messageText.toUpperCase().charCodeAt(0) - 64; // A=1, B=2, C=3, D=4, E=5
-      console.log(`⭐ Note reçue: ${messageText} (${noteValue}/5) pour client: ${clientPhone}`);
-      return await handleNoteValidation(clientPhone, noteValue);
-    } else {
-      console.log(`⚠️ DEBUG NOTATION - Lettre détectée mais waitingForNote=false ou undefined`);
-    }
-  }
-  
-  // Vérifier si en attente de commentaire
-  if (session?.waitingForComment) {
-    console.log(`💬 Commentaire reçu pour client: ${clientPhone}`);
-    return await handleCommentaire(clientPhone, messageText);
-  }
   
   if (!dbTest.connected) {
     console.log('❌ Base de données Supabase indisponible');
@@ -2799,26 +2536,6 @@ Pour une nouvelle demande: écrivez 'taxi'`;
     console.log(`🔴 DEBUG - hasLocation: ${hasLocation}`);
     console.log(`🔴 DEBUG - session: ${JSON.stringify(session)}`);
     
-    // 🛡️ PROTECTION : Ignorer les messages automatiques du service C#
-    if (messageText.includes('MERCI POUR VOTRE ÉVALUATION') || 
-        messageText.includes('🙏') || 
-        messageText.includes('CONDUCTEUR ASSIGNÉ') ||
-        messageText.includes('améliorer notre service') ||
-        messageText.includes('Votre avis nous aide') ||
-        messageText.includes('Merci de faire confiance')) {
-      console.log(`🛡️ IGNORÉ - Message automatique du service C# détecté: "${messageText}"`);
-      
-      // Retourner TwiML vide au lieu de texte plain
-      const emptyTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-</Response>`;
-      
-      return new Response(emptyTwiml, {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'text/xml' }
-      });
-    }
-    
     responseMessage = `🚕 Bienvenue chez LokoTaxi Conakry!
 
 Pour commencer votre réservation:
@@ -2981,94 +2698,8 @@ serve(async (req) => {
       });
     }
 
-    // Nouvelle action : Préparer session pour notation (requête JSON du service C#)
-    if (action === 'prepareRating') {
-      try {
-        const requestData = await req.json();
-        const { clientPhone, reservationId } = requestData;
-        
-        console.log(`🎯 Action prepareRating - Client: ${clientPhone}, Réservation: ${reservationId}`);
-        
-        if (!clientPhone || !reservationId) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'clientPhone et reservationId requis' 
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Appeler la fonction prepareRatingSession
-        await prepareRatingSession(clientPhone, reservationId);
-        
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: `Session préparée pour notation - Client: ${clientPhone}` 
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-        
-      } catch (error) {
-        console.error('❌ Erreur prepareRating:', error);
-        return new Response(JSON.stringify({ 
-          success: false, 
-          error: `Erreur lors de la préparation: ${error.message}` 
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-    }
-
-    // Parsing des données Twilio - DÉPLACER ICI POUR ÉVITER L'ERREUR
+    // Parsing des données Twilio
     const contentType = req.headers.get('Content-Type') || '';
-    
-    // Gestion spéciale pour les requêtes JSON (service C#)
-    if (req.method === 'POST' && contentType.includes('application/json')) {
-      try {
-        const requestData = await req.json();
-        
-        if (requestData.action === 'prepareRating') {
-          const { clientPhone, reservationId } = requestData;
-          
-          console.log(`🎯 JSON prepareRating - Client: ${clientPhone}, Réservation: ${reservationId}`);
-          
-          if (!clientPhone || !reservationId) {
-            return new Response(JSON.stringify({ 
-              success: false, 
-              error: 'clientPhone et reservationId requis' 
-            }), {
-              status: 400,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
-
-          // Appeler la fonction prepareRatingSession
-          await prepareRatingSession(clientPhone, reservationId);
-          
-          return new Response(JSON.stringify({ 
-            success: true, 
-            message: `Session préparée pour notation - Client: ${clientPhone}` 
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-      } catch (error) {
-        console.error('❌ Erreur JSON prepareRating:', error);
-        return new Response(JSON.stringify({ 
-          success: false, 
-          error: `Erreur lors de la préparation JSON: ${error.message}` 
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-    }
-
-    // Variables Twilio (contentType déjà déclaré plus haut)
     let from = '';
     let body = '';
     let latitude = '';

@@ -88,6 +88,10 @@ const SUPABASE_URL = 'https://nmwnibzgvwltipmtwhzo.supabase.co';
 const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5td25pYnpndndsdGlwbXR3aHpvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MzE4NjkwMywiZXhwIjoyMDY4NzYyOTAzfQ._TeinxeQLZKSowSCUswDR54WejQp1c9y_tkn6MLYh_M';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5td25pYnpndndsdGlwbXR3aHpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxODY5MDMsImV4cCI6MjA2ODc2MjkwM30.cmOT0pwKr0T7DyR7FjF9lr2Aea3A3OfOytEfhi0GQ4U';
 
+// Variables Google Places API (fallback recherche)
+const GOOGLE_PLACES_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY') || '';
+const GOOGLE_PLACES_URL = 'https://maps.googleapis.com/maps/api/place/textsearch/json';
+
 // Configuration IA Audio (préparation Phase 2)
 const AI_AUDIO_ENABLED = Deno.env.get('AI_AUDIO_ENABLED') === 'true';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
@@ -822,25 +826,113 @@ async function searchAdressePartial(keyword: string): Promise<any[]> {
   try {
     console.log(`🔍 Recherche fuzzy: "${keyword}"`);
     
-    // OPTIMISATION : Utiliser adresses_with_coords maintenant que la colonne actif est disponible
-    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/adresses_with_coords?select=id,nom,ville,type_lieu,longitude,latitude,position&actif=eq.true&or=(nom.ilike.*${encodeURIComponent(keyword)}*,nom_normalise.ilike.*${encodeURIComponent(keyword)}*)&order=nom`, {
-      method: 'GET',
+    // CORRECTION 1: Recherche fuzzy améliorée avec PostgreSQL similarity()
+    // Utilise pg_trgm pour détecter "lambayi" vs "lambanyi" (1 lettre différence)
+    const fuzzyQuery = `
+      SELECT id, nom, ville, type_lieu, longitude, latitude, position,
+             similarity(nom_normalise, '${keyword.toLowerCase()}') as score
+      FROM adresses_with_coords 
+      WHERE actif = true 
+        AND (
+          nom_normalise ILIKE '%${keyword.toLowerCase()}%' 
+          OR similarity(nom_normalise, '${keyword.toLowerCase()}') > 0.3
+        )
+      ORDER BY score DESC, nom
+      LIMIT 10
+    `;
+    
+    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse_fuzzy`, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${workingApiKey}`,
         'apikey': workingApiKey,
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify({ 
+        search_query: keyword.toLowerCase(),
+        similarity_threshold: 0.3,
+        limit_results: 10
+      })
     });
     
+    let adresses = [];
+    
     if (!response.ok) {
-      console.error(`❌ Erreur recherche fuzzy: ${response.status} - ${response.statusText}`);
-      const errorText = await response.text();
-      console.error(`❌ Détails erreur: ${errorText}`);
-      return [];
+      console.log(`⚠️ RPC fuzzy non disponible, fallback vers ilike amélioré`);
+      
+      // Fallback amélioré: recherche plus flexible avec variations courantes
+      // CORRECTION: Syntaxe PostgREST corrigée pour OR avec actif=true
+      const fallbackResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/adresses_with_coords?select=id,nom,ville,type_lieu,longitude,latitude,position&actif=eq.true&or=(nom_normalise.ilike.*${encodeURIComponent(keyword.toLowerCase())}*,nom.ilike.*${encodeURIComponent(keyword.toLowerCase())}*)&order=nom&limit=10`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (fallbackResponse.ok) {
+        adresses = await fallbackResponse.json();
+      }
+      
+      // NOUVEAU: Gérer les variations orthographiques de Lambanyi
+      const lambanVariations = ['lambay', 'lambayi', 'lambani', 'lambanyi'];
+      let hasLambanVariation = false;
+      let detectedVariation = '';
+      
+      // Détecter si le mot contient une variation de Lambanyi
+      for (const variation of lambanVariations) {
+        if (keyword.toLowerCase().includes(variation) && variation !== 'lambanyi') {
+          hasLambanVariation = true;
+          detectedVariation = variation;
+          break;
+        }
+      }
+      
+      if (hasLambanVariation) {
+        console.log(`🔄 Recherche avec variation orthographique: ${detectedVariation} → lambanyi`);
+        const keywordVariant = keyword.toLowerCase().replace(new RegExp(detectedVariation, 'g'), 'lambanyi');
+        
+        const variantResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/adresses_with_coords?select=id,nom,ville,type_lieu,longitude,latitude,position&actif=eq.true&or=(nom_normalise.ilike.*${encodeURIComponent(keywordVariant)}*,nom.ilike.*${encodeURIComponent(keywordVariant)}*)&order=nom&limit=10`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${workingApiKey}`,
+            'apikey': workingApiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (variantResponse.ok) {
+          const variantResults = await variantResponse.json();
+          console.log(`📊 Trouvé ${variantResults.length} résultat(s) avec la variation`);
+          
+          // Combiner les résultats et privilégier les noms plus longs/complets
+          adresses = [...variantResults, ...adresses];
+          
+          // Dédupliquer par ID et trier par longueur de nom décroissante
+          const uniqueMap = new Map();
+          adresses.forEach((addr: any) => {
+            if (!uniqueMap.has(addr.id) || addr.nom.length > uniqueMap.get(addr.id).nom.length) {
+              uniqueMap.set(addr.id, addr);
+            }
+          });
+          adresses = Array.from(uniqueMap.values())
+            .sort((a: any, b: any) => b.nom.length - a.nom.length)
+            .slice(0, 10);
+        }
+      }
+    } else {
+      adresses = await response.json();
     }
     
-    const adresses = await response.json();
     console.log(`🎯 ${adresses.length} résultat(s) fuzzy pour "${keyword}"`);
+    
+    // Si aucun résultat avec la recherche locale, appeler Google Places API
+    if (adresses.length === 0) {
+      console.log(`🌐 Aucun résultat local, tentative Google Places API...`);
+      const googleResults = await searchGooglePlacesFallback(keyword);
+      return googleResults;
+    }
     
     // OPTIMISATION : Les coordonnées sont déjà pré-calculées dans adresses_with_coords
     return adresses.map((addr: any) => ({
@@ -850,7 +942,8 @@ async function searchAdressePartial(keyword: string): Promise<any[]> {
       type_lieu: addr.type_lieu,
       latitude: addr.latitude || 0,  // Déjà calculé par PostgreSQL
       longitude: addr.longitude || 0,  // Déjà calculé par PostgreSQL
-      position: addr.position
+      position: addr.position,
+      score: addr.score || 1.0  // Score de similarité si disponible
     }));
     
   } catch (error) {
@@ -859,31 +952,117 @@ async function searchAdressePartial(keyword: string): Promise<any[]> {
   }
 }
 
-async function searchAdresse(searchTerm: string): Promise<any> {
+// CORRECTION 2: Fonction Google Places API en fallback
+async function searchGooglePlacesFallback(keyword: string): Promise<any[]> {
   try {
-    console.log(`🔍 Recherche adresse: "${searchTerm}"`);
+    if (!GOOGLE_PLACES_API_KEY) {
+      console.log(`⚠️ Google Places API key non configurée`);
+      return [];
+    }
+
+    console.log(`🌐 Recherche Google Places: "${keyword}"`);
     
-    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse`, {
-      method: 'POST',
+    // Recherche focalisée sur Conakry, Guinée
+    const query = `${keyword} Conakry Guinea`;
+    const url = `${GOOGLE_PLACES_URL}?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}&location=9.537,−13.678&radius=50000&language=fr&region=gn`;
+    
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${workingApiKey}`,
-        'apikey': workingApiKey,
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ search_term: searchTerm })
+      }
     });
     
     if (!response.ok) {
-      console.error(`❌ Erreur recherche adresse: ${response.status}`);
-      return null;
+      console.error(`❌ Erreur Google Places: ${response.status} - ${response.statusText}`);
+      return [];
     }
     
-    const adresses = await response.json();
-    console.log(`📍 ${adresses.length} adresse(s) trouvée(s)`);
+    const data = await response.json();
     
-    return adresses.length > 0 ? adresses[0] : null;
+    if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+      console.log(`🌐 Aucun résultat Google Places pour "${keyword}"`);
+      return [];
+    }
+    
+    console.log(`🎯 ${data.results.length} résultat(s) Google Places pour "${keyword}"`);
+    
+    // Convertir les résultats Google Places au format local
+    return data.results.slice(0, 3).map((place: any, index: number) => ({
+      id: `google_${index}_${Date.now()}`, // ID temporaire unique
+      nom: place.name,
+      ville: 'Conakry', // Supposé car recherche focalisée
+      type_lieu: place.types?.[0] || 'establishment',
+      latitude: place.geometry?.location?.lat || 0,
+      longitude: place.geometry?.location?.lng || 0,
+      position: null, // Google ne fournit pas au format PostGIS
+      source: 'google_places', // Marqueur pour distinction
+      address: place.formatted_address,
+      rating: place.rating || null,
+      score: 0.8 // Score artificiel pour Google (considéré comme pertinent)
+    }));
+    
   } catch (error) {
-    console.error(`❌ Exception recherche adresse: ${error.message}`);
+    console.error(`💥 Exception Google Places: ${error.message}`);
+    return [];
+  }
+}
+
+async function searchAdresse(searchTerm: string): Promise<any> {
+  try {
+    console.log(`🔍 RECHERCHE INTELLIGENTE: "${searchTerm}"`);
+    
+    // Import du service de recherche intelligent
+    const { searchLocation } = await import('./search-service.ts');
+    
+    // Utiliser le nouveau service de recherche
+    const result = await searchLocation(searchTerm, SUPABASE_URL, workingApiKey);
+    
+    if (result) {
+      // Log détaillé avec source de la recherche
+      const sourceInfo = result.source ? ` (Source: ${result.source})` : '';
+      const scoreInfo = result.score ? ` [Score: ${result.score}]` : '';
+      console.log(`📍 RECHERCHE INTELLIGENTE - Trouvé: ${result.nom}${sourceInfo}${scoreInfo}`);
+      
+      // Log spécifique selon la source
+      if (result.source?.startsWith('database_')) {
+        console.log(`💾 RECHERCHE DATABASE - Stratégie: ${result.source.replace('database_', '')}`);
+      } else if (result.source === 'google_places') {
+        console.log(`🌐 RECHERCHE GOOGLE PLACES - API externe utilisée`);
+      }
+      
+      return result;
+    }
+    
+    console.log(`❌ RECHERCHE INTELLIGENTE - Aucun résultat pour: "${searchTerm}"`);
+    return null;
+  } catch (error) {
+    console.error(`❌ Exception recherche intelligente: ${error.message}`);
+    // Fallback vers l'ancienne méthode en cas d'erreur
+    try {
+      const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/rpc/search_adresse`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ search_term: searchTerm })
+      });
+      
+      if (response.ok) {
+        const adresses = await response.json();
+        if (adresses.length > 0) {
+          console.log(`🔄 FALLBACK SQL - Trouvé: ${adresses[0].nom} (Source: database_sql_fallback)`);
+          return adresses[0];
+        } else {
+          console.log(`❌ FALLBACK SQL - Aucun résultat pour: "${searchTerm}"`);
+        }
+        return null;
+      }
+    } catch (fallbackError) {
+      console.error(`❌ Fallback aussi échoué: ${fallbackError.message}`);
+    }
     return null;
   }
 }
@@ -1696,9 +1875,61 @@ Status: ${dbTest.status || 'unknown'}
 Réessayez plus tard ou contactez le support.`;
     }
   
-  // 🔄 HANDLER GLOBAL RESET - Prioritaire sur tous les autres
-  } else if (messageText.includes('taxi') || messageText.toLowerCase() === 'annuler') {
-    console.log(`🔄 RESET WORKFLOW - Commande détectée: "${messageText}"`);
+  // 🚫 HANDLER ANNULATION COMPLÈTE - Prioritaire sur tous les autres
+  } else if (messageText.toLowerCase() === 'annuler') {
+    console.log(`🚫 ANNULATION TOTALE - Demandée par: ${clientPhone}`);
+    
+    // 1. Annuler les réservations pending
+    const cancelResult = await cancelPendingReservations(clientPhone);
+    
+    // 2. Nettoyer sessions
+    try {
+      await fetchWithRetry(`${SUPABASE_URL}/rest/v1/sessions?client_phone=eq.${encodeURIComponent(clientPhone)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log(`🧹 Sessions nettoyées pour ${clientPhone}`);
+    } catch (error) {
+      console.error('❌ Erreur suppression session:', error);
+    }
+    
+
+      // Mettre à jour réservations pending vers canceled
+  try {
+    const updateResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?client_phone=eq.${encodeURIComponent(clientPhone)}&statut=eq.pending`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${workingApiKey}`,
+        'apikey': workingApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        statut: 'canceled',
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (updateResponse.ok) {
+      console.log('✅ Réservations mises à jour vers canceled');
+    }
+  } catch (error) {
+    console.error('❌ Erreur mise à jour réservations:', error);
+  }
+  
+    // 3. Message de confirmation personnalisé
+    responseMessage = `✅ **Annulation terminée !**
+
+${cancelResult.message}${cancelResult.message ? '\n' : ''}Toutes vos données ont été effacées.
+
+Pour une nouvelle réservation, tapez 'taxi' 🚕`;
+
+  // 🔄 HANDLER NOUVEAU TAXI - Démarrage conversation
+  } else if (messageText.includes('taxi')) {
+    console.log(`🔄 NOUVEAU WORKFLOW TAXI - Commande détectée: "${messageText}"`);
     
     // Nettoyer session précédente
     try {
@@ -1710,7 +1941,7 @@ Réessayez plus tard ou contactez le support.`;
           'Content-Type': 'application/json'
         }
       });
-      console.log(`🧹 Session précédente nettoyée pour ${clientPhone}`);
+      console.log(`🧹 Session précédente nettoyée pour nouveau taxi: ${clientPhone}`);
     } catch (error) {
       console.error('❌ Erreur suppression session:', error);
     }
@@ -2029,7 +2260,7 @@ Options disponibles:
         });
         
         responseMessage = `✅ Lieu trouvé: ${lieuDepart.nom}
-📍 Position: ${lieuDepart.latitude.toFixed(3)}°N, ${lieuDepart.longitude.toFixed(3)}°W
+📍xx Position: ${lieuDepart.latitude.toFixed(3)}°N, ${lieuDepart.longitude.toFixed(3)}°W
 
 🔍 Vérification des conducteurs à proximité...
 
@@ -2948,6 +3179,53 @@ Réessayez dans quelques secondes ou utilisez le système texte:
       'Content-Type': 'text/xml; charset=utf-8'
     }
   });
+}
+
+// =================================================================
+// FONCTION ANNULATION RÉSERVATIONS PENDING
+// =================================================================
+
+async function cancelPendingReservations(clientPhone: string): Promise<{canceled: number, message: string}> {
+  try {
+    console.log(`🚫 Tentative annulation réservations pending pour: ${clientPhone}`);
+    
+    // Mettre à jour toutes les réservations pending vers canceled
+    const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?client_phone=eq.${encodeURIComponent(clientPhone)}&statut=eq.pending`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${workingApiKey}`,
+        'apikey': workingApiKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        statut: 'canceled',
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      const canceledReservations = await response.json();
+      const count = canceledReservations.length;
+      console.log(`✅ ${count} réservation(s) annulée(s) pour ${clientPhone}`);
+      
+      if (count > 0) {
+        const reservationIds = canceledReservations.map((r: any) => r.id).join(', ');
+        console.log(`📋 IDs réservations annulées: ${reservationIds}`);
+      }
+      
+      return {
+        canceled: count,
+        message: count > 0 ? `${count} réservation(s) en attente annulée(s).` : ''
+      };
+    } else {
+      console.error('❌ Erreur annulation réservations:', response.status, await response.text());
+      return { canceled: 0, message: '' };
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'annulation des réservations:', error);
+    return { canceled: 0, message: '' };
+  }
 }
 
 // =================================================================

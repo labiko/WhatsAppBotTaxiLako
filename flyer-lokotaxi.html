@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LokoTaxi - Flyer Digital</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .flyer {
+            width: 420px;  /* A5 ratio scaled */
+            height: 594px; /* A5 ratio scaled */
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .flyer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: linear-gradient(90deg, #00C851, #FFD600);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 900;
+            color: #00C851;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #333;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00C851, #FFD600);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .qr-section {
+            text-align: center;
+            margin: 25px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 3px solid #00C851;
+        }
+
+        .qr-placeholder {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 15px;
+            background: #fff;
+            border: 2px dashed #00C851;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #00C851;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .qr-placeholder:hover {
+            background: #00C851;
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .qr-text {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00C851;
+            margin-top: 10px;
+        }
+
+        .instructions {
+            margin: 20px 0;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .step-number {
+            background: #00C851;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 8px;
+            flex-shrink: 0;
+            font-size: 10px;
+        }
+
+        .advantages {
+            margin: 20px 0;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .advantage {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 11px;
+            color: #333;
+        }
+
+        .advantage-icon {
+            font-size: 16px;
+            margin-right: 8px;
+            width: 20px;
+        }
+
+        .pricing {
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+            background: linear-gradient(45deg, #00C851, #FFD600);
+            padding: 12px;
+            border-radius: 8px;
+            color: white;
+        }
+
+        .price-item {
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .price-icon {
+            font-size: 20px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .contact {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            background: #333;
+            color: white;
+            border-radius: 8px;
+            font-size: 11px;
+        }
+
+        .contact-item {
+            margin: 3px 0;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 10px;
+            color: #666;
+        }
+
+        .hashtags {
+            margin-bottom: 5px;
+            color: #00C851;
+        }
+
+        .revolution {
+            font-weight: bold;
+            color: #FFD600;
+            text-transform: uppercase;
+        }
+
+        /* Animation d'entrée */
+        .flyer {
+            animation: slideUp 0.8s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive pour mobile */
+        @media (max-width: 480px) {
+            .flyer {
+                width: 100%;
+                max-width: 380px;
+                height: auto;
+                padding: 20px;
+            }
+            
+            .title {
+                font-size: 24px;
+            }
+            
+            .qr-placeholder {
+                width: 100px;
+                height: 100px;
+            }
+        }
+
+        /* Version print */
+        @media print {
+            body {
+                background: white;
+                margin: 0;
+                padding: 0;
+            }
+            
+            .flyer {
+                width: 148mm;
+                height: 210mm;
+                box-shadow: none;
+                border-radius: 0;
+                page-break-after: always;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="flyer">
+        <div class="header">
+            <div class="title">🚖 LokoTaxi Conakry</div>
+            <div class="subtitle">✨ Réservez votre taxi en 30 secondes ✨</div>
+        </div>
+
+        <div class="qr-section">
+            <div class="qr-placeholder" onclick="window.open('https://wa.me/14155238886?text=🚖%20taxi', '_blank')">
+                QR CODE<br>
+                <small>Cliquez ou scannez</small>
+            </div>
+            <div class="qr-text">📱 SCANNEZ ET C'EST PARTI !</div>
+        </div>
+
+        <div class="instructions">
+            <div class="section-title">📋 Comment réserver votre taxi :</div>
+            <div class="step">
+                <div class="step-number">1</div>
+                <div>Scannez le QR Code avec votre téléphone</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div>WhatsApp s'ouvre automatiquement</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div>Appuyez sur "Envoyer" (message déjà prêt)</div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div>Choisissez : Moto 🏍️ ou Voiture 🚗</div>
+            </div>
+            <div class="step">
+                <div class="step-number">5</div>
+                <div>Partagez votre position GPS</div>
+            </div>
+            <div class="step">
+                <div class="step-number">6</div>
+                <div>Indiquez votre destination</div>
+            </div>
+            <div class="step">
+                <div class="step-number">7</div>
+                <div>Confirmez le prix proposé</div>
+            </div>
+            <div class="step">
+                <div class="step-number">8</div>
+                <div>Votre conducteur vous contacte !</div>
+            </div>
+        </div>
+
+        <div class="advantages">
+            <div class="section-title">🎯 Pourquoi choisir LokoTaxi ?</div>
+            <div class="advantage">
+                <span class="advantage-icon">💰</span>
+                <span>PRIX TRANSPARENTS - Pas de surprise !</span>
+            </div>
+            <div class="advantage">
+                <span class="advantage-icon">🚗</span>
+                <span>CONDUCTEURS VÉRIFIÉS - Notes et avis clients</span>
+            </div>
+            <div class="advantage">
+                <span class="advantage-icon">📍</span>
+                <span>GÉOLOCALISATION - Temps réel précis</span>
+            </div>
+            <div class="advantage">
+                <span class="advantage-icon">⏰</span>
+                <span>DISPONIBLE 24H/24 - Jour et nuit</span>
+            </div>
+            <div class="advantage">
+                <span class="advantage-icon">💬</span>
+                <span>SUPPORT WHATSAPP - Assistance immédiate</span>
+            </div>
+            <div class="advantage">
+                <span class="advantage-icon">🔒</span>
+                <span>PAIEMENT SÉCURISÉ - Espèces ou mobile</span>
+            </div>
+        </div>
+
+        <div class="pricing">
+            <div class="price-item">
+                <span class="price-icon">🏍️</span>
+                MOTO<br>
+                À partir de<br>
+                <strong>8,000 GNF</strong>
+            </div>
+            <div class="price-item">
+                <span class="price-icon">🚗</span>
+                VOITURE<br>
+                À partir de<br>
+                <strong>15,000 GNF</strong>
+            </div>
+        </div>
+
+        <div class="contact">
+            <div class="contact-item">📞 WhatsApp : +1 415 523 8886</div>
+            <div class="contact-item">📍 Zone : Conakry et environs</div>
+            <div class="contact-item">🌐 Web : lokotaxi.com</div>
+        </div>
+
+        <div class="footer">
+            <div class="hashtags">#LokoTaxi #Transport #Conakry #Innovation</div>
+            <div class="revolution">🌟 La révolution du transport à Conakry 🌟</div>
+        </div>
+    </div>
+
+    <script>
+        // Intégration du QR Code LokoTaxi réel
+        document.addEventListener('DOMContentLoaded', function() {
+            const qrPlaceholder = document.querySelector('.qr-placeholder');
+            
+            // Chemin vers votre QR Code LokoTaxi
+            const qrImageUrl = '../LABICOTAXI/MEDIA/qrCode + Lien Bot/LokoTaxiqrCode.png';
+            
+            // Créer l'image QR Code avec gestion d'erreur
+            const qrImage = document.createElement('img');
+            qrImage.src = qrImageUrl;
+            qrImage.alt = 'QR Code LokoTaxi - Scanner pour réserver';
+            qrImage.style.cssText = `
+                width: 100%; 
+                height: 100%; 
+                object-fit: contain;
+                border-radius: 4px;
+                transition: transform 0.3s ease;
+            `;
+            
+            // Animation hover sur l'image
+            qrImage.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.05)';
+            });
+            
+            qrImage.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+            });
+            
+            // Si l'image ne charge pas, afficher fallback
+            qrImage.addEventListener('error', function() {
+                qrPlaceholder.innerHTML = `
+                    <div style="text-align: center; color: #00C851;">
+                        <strong>QR CODE LOKOTAXI</strong><br>
+                        <small>Scanner pour réserver</small><br>
+                        <small style="color: #999;">Image: LokoTaxiqrCode.png</small>
+                    </div>
+                `;
+            });
+            
+            // Remplacer le placeholder par l'image réelle
+            qrPlaceholder.innerHTML = '';
+            qrPlaceholder.appendChild(qrImage);
+            
+            // Ajouter tooltip informatif
+            qrPlaceholder.title = 'Cliquez pour ouvrir WhatsApp ou scannez avec votre téléphone';
+        });
+
+        // Fonction pour impression
+        function printFlyer() {
+            window.print();
+        }
+
+        // Ajouter bouton print (optionnel)
+        const printBtn = document.createElement('button');
+        printBtn.innerHTML = '🖨️ Imprimer';
+        printBtn.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #00C851;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        `;
+        printBtn.onclick = printFlyer;
+        document.body.appendChild(printBtn);
+    </script>
+</body>
+</html>

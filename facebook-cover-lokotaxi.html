@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LokoTaxi - Cover Facebook</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            background: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .facebook-cover {
+            width: 820px;
+            height: 312px;
+            background: linear-gradient(135deg, #C1F11D 0%, #B8E01B 100%);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        /* Pattern de fond avec icônes */
+        .background-pattern {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            opacity: 0.1;
+            background-image: 
+                url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="50" font-size="30" fill="%23000">🚗</text></svg>'),
+                url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="50" font-size="25" fill="%23000">🏍️</text></svg>');
+            background-size: 80px 80px, 60px 60px;
+            background-position: 50px 30px, 200px 100px;
+            background-repeat: no-repeat;
+        }
+
+        /* Texte "LokoTaxi" répété en fond */
+        .text-pattern {
+            position: absolute;
+            top: -50px;
+            left: -100px;
+            font-size: 120px;
+            color: rgba(255,255,255,0.05);
+            font-weight: 900;
+            transform: rotate(-15deg);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .text-pattern-2 {
+            position: absolute;
+            bottom: -80px;
+            right: -150px;
+            font-size: 80px;
+            color: rgba(255,255,255,0.03);
+            font-weight: 900;
+            transform: rotate(25deg);
+            pointer-events: none;
+        }
+
+        /* Logo et titre */
+        .header-section {
+            position: absolute;
+            top: 20px;
+            left: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 10;
+        }
+
+        .app-logo {
+            width: 60px;
+            height: 60px;
+            background: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            border: 2px solid rgba(255,255,255,0.5);
+        }
+
+        .app-logo-text {
+            font-size: 12px;
+            font-weight: bold;
+            color: #C1F11D;
+            text-align: center;
+            line-height: 1.1;
+        }
+
+        .main-title {
+            font-size: 48px;
+            color: #797979;
+            font-weight: 900;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Texte principal */
+        .main-text {
+            position: absolute;
+            top: 100px;
+            left: 30px;
+            z-index: 10;
+        }
+
+        .reservez-text {
+            font-size: 64px;
+            color: white;
+            font-weight: 900;
+            line-height: 0.9;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.1);
+            margin-bottom: 5px;
+        }
+
+        .whatsapp-text {
+            font-size: 58px;
+            color: white;
+            font-weight: 900;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.1);
+        }
+
+        /* Texte révolution */
+        .revolution-text {
+            position: absolute;
+            bottom: 20px;
+            left: 30px;
+            font-size: 28px;
+            color: white;
+            font-weight: 900;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        /* Voiture */
+        .car-container {
+            position: absolute;
+            bottom: 40px;
+            left: 280px;
+            z-index: 5;
+        }
+
+        .car-image {
+            width: 280px;
+            height: auto;
+            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.3));
+        }
+
+        /* QR Code */
+        .qr-code {
+            position: absolute;
+            bottom: 35px;
+            left: 450px;
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        .qr-pattern {
+            width: 70px;
+            height: 70px;
+            background: 
+                linear-gradient(45deg, #C1F11D 25%, transparent 25%),
+                linear-gradient(-45deg, #C1F11D 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #C1F11D 75%),
+                linear-gradient(-45deg, transparent 75%, #C1F11D 75%);
+            background-size: 10px 10px;
+            background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+        }
+
+        /* Téléphone */
+        .phone-container {
+            position: absolute;
+            right: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 15;
+        }
+
+        .phone-mockup {
+            width: 220px;
+            height: 400px;
+            background: linear-gradient(145deg, #4a4a4a 0%, #2a2a2a 100%);
+            border-radius: 25px;
+            padding: 8px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            transform: rotate(-5deg);
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: #C1F11D;
+            border-radius: 20px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Icône WhatsApp en fond du téléphone */
+        .whatsapp-bg {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            opacity: 0.3;
+        }
+
+        /* Contenu du téléphone */
+        .phone-content {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 80px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .welcome-text {
+            font-size: 18px;
+            color: #797979;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .question-text {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 20px;
+            line-height: 1.3;
+        }
+
+        .option {
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #333;
+            line-height: 1.4;
+        }
+
+        .option-type {
+            font-weight: bold;
+            color: #C1F11D;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .facebook-cover {
+                width: 100%;
+                max-width: 800px;
+                height: auto;
+                aspect-ratio: 820 / 312;
+            }
+            
+            .main-title {
+                font-size: 36px;
+            }
+            
+            .reservez-text {
+                font-size: 48px;
+            }
+            
+            .whatsapp-text {
+                font-size: 42px;
+            }
+            
+            .phone-mockup {
+                width: 180px;
+                height: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="facebook-cover">
+        <!-- Pattern de fond -->
+        <div class="background-pattern"></div>
+        <div class="text-pattern">LokoTaxi LokoTaxi</div>
+        <div class="text-pattern-2">RÉVOLUTION</div>
+
+        <!-- Header avec logo -->
+        <div class="header-section">
+            <div class="app-logo">
+                <div class="app-logo-text">App<br>Lako</div>
+            </div>
+            <div class="main-title">LokoTaxi</div>
+        </div>
+
+        <!-- Texte principal -->
+        <div class="main-text">
+            <div class="reservez-text">RESERVEZ</div>
+            <div class="whatsapp-text">PAR WHATSAPP</div>
+        </div>
+
+        <!-- Texte révolution -->
+        <div class="revolution-text">
+            RÉVOLUTION<br>
+            TRANSPORT À CONAKRY
+        </div>
+
+        <!-- Voiture SVG -->
+        <div class="car-container">
+            <svg class="car-image" viewBox="0 0 300 180" xmlns="http://www.w3.org/2000/svg">
+                <!-- Ombre -->
+                <ellipse cx="150" cy="165" rx="120" ry="8" fill="rgba(0,0,0,0.2)"/>
+                
+                <!-- Carrosserie -->
+                <path d="M 50 120 Q 50 90, 80 75 L 120 55 Q 135 50, 150 50 L 220 50 Q 235 50, 250 55 L 290 75 Q 320 90, 320 120 L 320 140 Q 320 150, 310 150 L 60 150 Q 50 150, 50 140 Z" 
+                      fill="#E0E0E0" stroke="none"/>
+                
+                <!-- Toit -->
+                <path d="M 135 50 L 235 50 L 220 55 L 150 55 Z" fill="#D0D0D0"/>
+                
+                <!-- Vitres -->
+                <path d="M 120 55 L 150 50 L 155 80 L 115 85 Z" fill="#4A90E2" opacity="0.8"/>
+                <path d="M 160 52 L 210 52 L 210 80 L 160 80 Z" fill="#4A90E2" opacity="0.7"/>
+                <path d="M 215 52 L 250 55 L 255 85 L 215 80 Z" fill="#4A90E2" opacity="0.8"/>
+                
+                <!-- Roues -->
+                <circle cx="100" cy="150" r="25" fill="#2C2C2C"/>
+                <circle cx="100" cy="150" r="18" fill="#505050"/>
+                <circle cx="270" cy="150" r="25" fill="#2C2C2C"/>
+                <circle cx="270" cy="150" r="18" fill="#505050"/>
+                
+                <!-- Phares -->
+                <ellipse cx="315" cy="110" rx="12" ry="8" fill="#FAFAFA" stroke="#999" stroke-width="1"/>
+                <ellipse cx="55" cy="110" rx="12" ry="8" fill="#FF4444"/>
+                
+                <!-- Calandre -->
+                <rect x="300" y="115" width="15" height="20" rx="2" fill="#333"/>
+                
+                <!-- Poignées -->
+                <rect x="180" y="100" width="15" height="5" rx="2" fill="#999"/>
+                <rect x="240" y="100" width="15" height="5" rx="2" fill="#999"/>
+            </svg>
+        </div>
+
+        <!-- QR Code -->
+        <div class="qr-code">
+            <div class="qr-pattern"></div>
+        </div>
+
+        <!-- Téléphone -->
+        <div class="phone-container">
+            <div class="phone-mockup">
+                <div class="phone-screen">
+                    <!-- Icône WhatsApp -->
+                    <svg class="whatsapp-bg" viewBox="0 0 24 24" fill="#25D366">
+                        <path d="M12.031 2C6.517 2 2.031 6.486 2.031 12c0 1.753.46 3.472 1.335 4.992L2 22l5.232-1.328c1.468.794 3.137 1.21 4.831 1.21 5.514 0 9.968-4.486 9.968-10C22.031 6.486 17.545 2 12.031 2zm5.812 14.154c-.246.693-1.452 1.337-1.883 1.387-.431.05-.437.375-2.708-.563-2.271-.938-3.723-3.231-3.835-3.381-.112-.15-1.022-1.363-1.022-2.599 0-1.236.65-1.845.881-2.098.23-.253.507-.317.676-.317.17 0 .34.002.487.01.157.008.366-.06.572.437.206.497.699 1.706.762 1.83.063.125.105.271.021.436-.084.165-.126.268-.252.414-.126.146-.265.326-.378.437-.126.124-.257.26-.11.51.146.25.65 1.073 1.395 1.738.959.855 1.768 1.12 2.019 1.247.251.127.397.105.543-.062.146-.168.624-.728.79-.978.166-.25.333-.208.562-.125.229.083 1.454.686 1.703.81.249.125.416.188.478.291.062.104.062.604-.184 1.297z"/>
+                    </svg>
+                    
+                    <!-- Contenu conversation -->
+                    <div class="phone-content">
+                        <div class="welcome-text">🚖 Bienvenue chez LokoTaxi!</div>
+                        <div class="question-text">Quel type de taxi souhaitez-vous?</div>
+                        
+                        <div class="option">
+                            • <span class="option-type">'moto'</span> - Transport rapide en moto-taxi
+                        </div>
+                        
+                        <div class="option">
+                            • <span class="option-type">'voiture'</span> - Transport Conkure
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Animation d'entrée
+        document.addEventListener('DOMContentLoaded', function() {
+            const elements = [
+                '.header-section', 
+                '.main-text', 
+                '.revolution-text',
+                '.car-container',
+                '.qr-code',
+                '.phone-container'
+            ];
+            
+            elements.forEach((selector, index) => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    element.style.opacity = '0';
+                    element.style.transform += ' translateY(20px)';
+                    element.style.transition = 'all 0.8s ease';
+                    
+                    setTimeout(() => {
+                        element.style.opacity = '1';
+                        element.style.transform = element.style.transform.replace('translateY(20px)', 'translateY(0)');
+                    }, index * 150);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

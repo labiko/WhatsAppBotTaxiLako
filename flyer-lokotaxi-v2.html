@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LokoTaxi - Flyer V2 Réplique</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            background: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .flyer {
+            width: 420px;
+            height: 600px;
+            background: white;
+            border-radius: 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #C1F11D;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #333;
+        }
+
+        .nouveau-badge {
+            background: white;
+            color: #797979;
+            padding: 6px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .time-badge {
+            background: #FFD54F;
+            color: #333;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+            line-height: 1.1;
+            min-width: 70px;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 15px 20px;
+        }
+
+        .logo-circle {
+            width: 90px;
+            height: 90px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 2px solid #C1F11D;
+        }
+
+        .logo-circle img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .logo-text {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .content-area {
+            display: flex;
+            padding: 0 20px;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex: 1;
+        }
+
+        .left-column {
+            flex: 1;
+        }
+
+        .qr-section {
+            width: 120px;
+            text-align: center;
+        }
+
+        .qr-container {
+            width: 120px;
+            height: 120px;
+            background: white;
+            border: 3px solid #C1F11D;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .qr-container:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(193, 241, 29, 0.4);
+        }
+
+        .qr-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .qr-text {
+            background: #C1F11D;
+            color: #333;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .steps-list {
+            font-size: 11px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .step-item {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .step-number {
+            background: #C1F11D;
+            color: #333;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .advantages-section {
+            background: #F8FFF0;
+            margin: 0 20px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .advantages-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #797979;
+            margin-bottom: 10px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .advantages-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 10px;
+        }
+
+        .advantage-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            color: #797979;
+        }
+
+        .advantage-icon {
+            width: 16px;
+            height: 16px;
+            background: #C1F11D;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            font-size: 9px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .pricing-section {
+            display: flex;
+            gap: 12px;
+            margin: 0 20px;
+            margin-top: -25px;
+        }
+
+        .price-card {
+            flex: 1;
+            background: #C1F11D;
+            color: #333;
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .price-card.voiture {
+            background: #FFD54F;
+            color: #333;
+        }
+
+        .price-icon {
+            font-size: 20px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .price-label {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .price-amount {
+            font-size: 10px;
+            opacity: 0.9;
+        }
+
+        .contact-section {
+            background: #797979;
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            font-size: 11px;
+            margin-top: auto;
+        }
+
+        .contact-item {
+            margin: 2px 0;
+        }
+
+        .whatsapp-number {
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        /* Animation d'entrée */
+        .flyer {
+            animation: slideIn 0.8s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .flyer {
+                width: 100%;
+                max-width: 380px;
+                height: auto;
+            }
+            
+            .content-area {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .qr-section {
+                width: auto;
+                margin-bottom: 20px;
+            }
+        }
+
+        /* Version print A5 */
+        @media print {
+            body {
+                background: white;
+                margin: 0;
+                padding: 0;
+            }
+            
+            .flyer {
+                width: 148mm;
+                height: 210mm;
+                box-shadow: none;
+                page-break-after: always;
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="flyer">
+        <!-- Header avec badge nouveau et temps -->
+        <div class="header">
+            <div class="nouveau-badge">
+                <svg style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; fill: #25D366;" viewBox="0 0 24 24">
+                    <path d="M12.031 2C6.517 2 2.031 6.486 2.031 12c0 1.753.46 3.472 1.335 4.992L2 22l5.232-1.328c1.468.794 3.137 1.21 4.831 1.21 5.514 0 9.968-4.486 9.968-10C22.031 6.486 17.545 2 12.031 2zm5.812 14.154c-.246.693-1.452 1.337-1.883 1.387-.431.05-.437.375-2.708-.563-2.271-.938-3.723-3.231-3.835-3.381-.112-.15-1.022-1.363-1.022-2.599 0-1.236.65-1.845.881-2.098.23-.253.507-.317.676-.317.17 0 .34.002.487.01.157.008.366-.06.572.437.206.497.699 1.706.762 1.83.063.125.105.271.021.436-.084.165-.126.268-.252.414-.126.146-.265.326-.378.437-.126.124-.257.26-.11.51.146.25.65 1.073 1.395 1.738.959.855 1.768 1.12 2.019 1.247.251.127.397.105.543-.062.146-.168.624-.728.79-.978.166-.25.333-.208.562-.125.229.083 1.454.686 1.703.81.249.125.416.188.478.291.062.104.062.604-.184 1.297z"/>
+                </svg>
+                NOUVEAU À CONAKRY
+            </div>
+            <div class="time-badge">
+                30<br>
+                <small>SECONDES</small>
+            </div>
+        </div>
+
+        <!-- Logo LokoTaxi -->
+        <div class="logo-section">
+            <div class="logo-circle">
+                <!-- Logo sera inséré ici -->
+            </div>
+            <div class="logo-text">LokoTaxi</div>
+        </div>
+
+        <!-- Contenu principal -->
+        <div class="content-area">
+            <div class="left-column">
+                <div class="steps-list">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div>Scannez le QR Code avec votre téléphone</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div>WhatsApp s'ouvre automatiquement</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <div>Choisissez moto ou voiture</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">4</div>
+                        <div>Partagez votre position GPS</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">5</div>
+                        <div>Validez la destination</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">6</div>
+                        <div>Indiquez votre destination</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">7</div>
+                        <div>Confirmez le prix proposé</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">8</div>
+                        <div>Votre conducteur vous contacte</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="qr-section">
+                <div class="qr-container" onclick="window.open('https://wa.me/14155238886?text=🚖%20taxi', '_blank')">
+                    <!-- QR Code sera inséré ici -->
+                </div>
+                <div class="qr-text">C'est parti !</div>
+            </div>
+        </div>
+
+        <!-- Section Avantages -->
+        <div class="advantages-section">
+            <div class="advantages-title">AVANTAGES</div>
+            <div class="advantages-grid">
+                <div class="advantage-item">
+                    <div class="advantage-icon">✓</div>
+                    <div>PRIX TRANSPARENTS<br><small>Pas de surprise</small></div>
+                </div>
+                <div class="advantage-item">
+                    <div class="advantage-icon">✓</div>
+                    <div>CONDUCTEURS VÉRIFIÉS<br><small>Notes et avis clients</small></div>
+                </div>
+                <div class="advantage-item">
+                    <div class="advantage-icon">✓</div>
+                    <div>GÉOLOCALISATION<br><small>Temps réel précis</small></div>
+                </div>
+                <div class="advantage-item">
+                    <div class="advantage-icon">✓</div>
+                    <div>DISPONIBLE 24H/24<br><small>Jour et nuit</small></div>
+                </div>
+                <div class="advantage-item">
+                    <div class="advantage-icon">✓</div>
+                    <div>SUPPORT WHATSAPP<br><small>Assistance immédiate</small></div>
+                </div>
+                <div class="advantage-item">
+                    <div class="advantage-icon">✓</div>
+                    <div>PAIEMENT SÉCURISÉ<br><small>Espèces ou mobile</small></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tarifs -->
+        <div class="pricing-section">
+            <div class="price-card">
+                <span class="price-icon">🏍️</span>
+                <div class="price-label">MOTO</div>
+                <div class="price-amount">À partir de 8,000 GNF</div>
+            </div>
+            <div class="price-card voiture">
+                <span class="price-icon">🚗</span>
+                <div class="price-label">VOITURE</div>
+                <div class="price-amount">À partir de 15,000 GNF</div>
+            </div>
+        </div>
+
+        <!-- Contact -->
+        <div class="contact-section">
+            <div class="contact-item whatsapp-number">
+                <svg style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; fill: white;" viewBox="0 0 24 24">
+                    <path d="M12.031 2C6.517 2 2.031 6.486 2.031 12c0 1.753.46 3.472 1.335 4.992L2 22l5.232-1.328c1.468.794 3.137 1.21 4.831 1.21 5.514 0 9.968-4.486 9.968-10C22.031 6.486 17.545 2 12.031 2zm5.812 14.154c-.246.693-1.452 1.337-1.883 1.387-.431.05-.437.375-2.708-.563-2.271-.938-3.723-3.231-3.835-3.381-.112-.15-1.022-1.363-1.022-2.599 0-1.236.65-1.845.881-2.098.23-.253.507-.317.676-.317.17 0 .34.002.487.01.157.008.366-.06.572.437.206.497.699 1.706.762 1.83.063.125.105.271.021.436-.084.165-.126.268-.252.414-.126.146-.265.326-.378.437-.126.124-.257.26-.11.51.146.25.65 1.073 1.395 1.738.959.855 1.768 1.12 2.019 1.247.251.127.397.105.543-.062.146-.168.624-.728.79-.978.166-.25.333-.208.562-.125.229.083 1.454.686 1.703.81.249.125.416.188.478.291.062.104.062.604-.184 1.297z"/>
+                </svg>
+                WhatsApp : +1 415 523 8886</div>
+            <div class="contact-item">📍 Zone : Conakry et environs</div>
+            <div class="contact-item">🌐 Web : lokotaxi.com</div>
+        </div>
+    </div>
+
+    <script>
+        // Intégration du QR Code et Logo LokoTaxi
+        document.addEventListener('DOMContentLoaded', function() {
+            // === INTEGRATION QR CODE ===
+            const qrContainer = document.querySelector('.qr-container');
+            const qrImageUrl = '../LABICOTAXI/MEDIA/qrCode + Lien Bot/LokoTaxiqrCode.png';
+            
+            // Créer l'image QR Code
+            const qrImage = document.createElement('img');
+            qrImage.src = qrImageUrl;
+            qrImage.alt = 'QR Code LokoTaxi - Scanner pour réserver';
+            
+            // Gestion d'erreur QR Code
+            qrImage.addEventListener('error', function() {
+                qrContainer.innerHTML = `
+                    <div style="text-align: center; color: #C1F11D; font-size: 12px;">
+                        <div style="font-size: 24px; margin-bottom: 8px;">📱</div>
+                        <strong>QR CODE</strong><br>
+                        <small>LokoTaxi</small>
+                    </div>
+                `;
+            });
+            
+            qrContainer.appendChild(qrImage);
+            qrContainer.title = 'Scanner avec votre téléphone ou cliquer pour ouvrir WhatsApp';
+
+            // === INTEGRATION LOGO TRÈS PETIT ===
+            const logoContainer = document.querySelector('.logo-circle');
+            const logoImageUrl = '../LABICOTAXI/MEDIA/Flyers/flyer-logo.png';
+            
+            // Créer l'image Logo (très petite)
+            const logoImage = document.createElement('img');
+            logoImage.src = logoImageUrl;
+            logoImage.alt = 'Logo LokoTaxi';
+            logoImage.style.cssText = `
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+                padding: 2px;
+            `;
+            
+            // Gestion d'erreur Logo - fallback vers "L"
+            logoImage.addEventListener('error', function() {
+                logoContainer.innerHTML = `
+                    <div style="color: #333; font-size: 18px; font-weight: bold;">L</div>
+                `;
+                logoContainer.style.background = '#C1F11D';
+            });
+            
+            // Remplacer le contenu par le logo
+            logoContainer.innerHTML = '';
+            logoContainer.appendChild(logoImage);
+        });
+
+        // Bouton d'impression (optionnel)
+        const printBtn = document.createElement('button');
+        printBtn.innerHTML = '🖨️';
+        printBtn.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #C1F11D;
+            color: #333;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            font-weight: bold;
+        `;
+        printBtn.onclick = () => window.print();
+        document.body.appendChild(printBtn);
+    </script>
+</body>
+</html>

@@ -74,7 +74,10 @@
       "Bash(deno check:*)",
       "Bash($timestamp = Get-Date -Format \"MM_yyyy_HHh_mmins\")",
       "Bash(git rm:*)",
-      "Bash(true)"
+      "Bash(true)",
+      "Bash(ls:*)",
+      "Bash(diff:*)",
+      "Bash(del \"C:\\Users\\diall\\Documents\\LokoTaxi\\sql\\amelioration_systeme_annulation.sql\")"
     ],
     "deny": []
   }

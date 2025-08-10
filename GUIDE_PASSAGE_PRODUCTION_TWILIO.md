@@ -3,8 +3,8 @@
 ## 📋 **ÉTAT ACTUEL ANALYSÉ**
 
 **✅ Configuration Twilio identifiée :**
-- **Account SID :** `AC18f32de0b3353a2e66ca647797e0993d`
-- **Auth Token :** `a85040196f279e0acd690566fe2ae788`
+- **Account SID :** `AC[VOTRE_ACCOUNT_SID]`
+- **Auth Token :** `[VOTRE_AUTH_TOKEN]`
 - **Status actuel :** Mode développement/sandbox
 - **Webhook URL :** `https://nmwnibzgvwltipmtwhzo.supabase.co/functions/v1/webhook-router`
 

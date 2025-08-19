@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🧪 Test Green API Direct</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        input, textarea, button { width: 100%; padding: 10px; margin: 5px 0; }
+        button { background: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background: #45a049; }
+        .result { background: #f9f9f9; padding: 10px; border-radius: 5px; margin-top: 10px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Green API WhatsApp Direct</h1>
+        
+        <div class="section">
+            <h3>📋 Configuration Green API</h3>
+            <input type="text" id="instanceId" placeholder="Instance ID" value="7105303512">
+            <input type="text" id="token" placeholder="Token" value="022e5da3d2e641ab99a3f70539270b187fbfa80635c44b71ad">
+            <input type="text" id="baseUrl" placeholder="Base URL" value="https://api.green-api.com">
+        </div>
+        
+        <div class="section">
+            <h3>📱 Message à envoyer</h3>
+            <input type="text" id="phoneNumber" placeholder="Numéro de téléphone" value="33620951645">
+            <textarea id="messageText" rows="4" placeholder="Message à envoyer">🚗 MOTO assignée ! 
+
+🧑‍✈️ Conducteur: balde mamadou souaré
+📞 +224622111111 
+🚗 toyota yaris (RC-898-54)
+
+💰 55 000 GNF • Arrivée dans ⏰ 0 min
+
+Le conducteur vous contactera bientôt. Bon voyage! 🛣️</textarea>
+        </div>
+        
+        <div class="section">
+            <button onclick="sendMessage()">📤 Envoyer Message WhatsApp</button>
+            <div id="result" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="section">
+            <h3>📊 Test avec CURL (Alternative)</h3>
+            <textarea id="curlCommand" rows="6" readonly></textarea>
+            <button onclick="generateCurl()">🔧 Générer commande CURL</button>
+        </div>
+    </div>
+
+    <script>
+        function generateCurl() {
+            const instanceId = document.getElementById('instanceId').value;
+            const token = document.getElementById('token').value;
+            const baseUrl = document.getElementById('baseUrl').value;
+            const phone = document.getElementById('phoneNumber').value;
+            const message = document.getElementById('messageText').value;
+            
+            const curlCommand = `curl -X POST "${baseUrl}/waInstance${instanceId}/sendMessage/${token}" \\
+-H "Content-Type: application/json" \\
+-d '{
+    "chatId": "${phone}@c.us",
+    "message": "${message.replace(/\n/g, '\\n').replace(/"/g, '\\"')}"
+}'`;
+            
+            document.getElementById('curlCommand').value = curlCommand;
+        }
+        
+        async function sendMessage() {
+            const instanceId = document.getElementById('instanceId').value;
+            const token = document.getElementById('token').value;
+            const baseUrl = document.getElementById('baseUrl').value;
+            const phone = document.getElementById('phoneNumber').value;
+            const message = document.getElementById('messageText').value;
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result';
+            resultDiv.innerHTML = '⏳ Envoi en cours...';
+            
+            try {
+                const url = `${baseUrl}/waInstance${instanceId}/sendMessage/${token}`;
+                const payload = {
+                    chatId: `${phone}@c.us`,
+                    message: message
+                };
+                
+                console.log('URL:', url);
+                console.log('Payload:', payload);
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const responseText = await response.text();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ Message envoyé avec succès !</strong><br>
+                        <strong>Status:</strong> ${response.status}<br>
+                        <strong>Réponse:</strong><br>
+                        <pre>${responseText}</pre>
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `
+                        <strong>❌ Erreur lors de l'envoi</strong><br>
+                        <strong>Status:</strong> ${response.status}<br>
+                        <strong>Erreur:</strong><br>
+                        <pre>${responseText}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <strong>❌ Erreur réseau</strong><br>
+                    <strong>Erreur:</strong> ${error.message}
+                `;
+            }
+        }
+        
+        // Générer la commande CURL au chargement
+        window.onload = function() {
+            generateCurl();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+// ==============================================
+// MODIFICATION À FAIRE DANS ENDPOINT_TACHE_PLANIFIEE.CS
+// ==============================================
+
+// REMPLACER (lignes 165-189) :
+// -----------------------------------------------
+// ANCIEN CODE (Twilio uniquement) :
+// -----------------------------------------------
+                                        // 5. Envoyer WhatsApp via Twilio
+                                        using (var twilioClient = new HttpClient())
+                                        {
+                                            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{twilioSid}:{twilioToken}"));
+                                            twilioClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
+
+                                            var formData = new FormUrlEncodedContent(new[]
+                                            {
+                                  new KeyValuePair<string, string>("From", $"whatsapp:{twilioNumber}"),
+                                  new KeyValuePair<string, string>("To", $"whatsapp:{res.client_phone}"),
+                                  new KeyValuePair<string, string>("Body", message)
+                              });
+
+                                            var twilioResponse = await twilioClient.PostAsync($"https://api.twilio.com/2010-04-01/Accounts/{twilioSid}/Messages.json", formData);
+
+                                            if (twilioResponse.IsSuccessStatusCode)
+                                            {
+                                                logMessages.Add($"✅ WhatsApp envoyé à {res.client_phone}");
+                                            }
+                                            else
+                                            {
+                                                var errorText = await twilioResponse.Content.ReadAsStringAsync();
+                                                logMessages.Add($"❌ Erreur Twilio {twilioResponse.StatusCode}: {errorText}");
+                                                continue;
+                                            }
+                                        }
+
+// -----------------------------------------------
+// PAR NOUVEAU CODE (Multi-provider) :
+// -----------------------------------------------
+                                        // 5. Envoyer WhatsApp via Provider configuré
+                                        var whatsAppProvider = new WhatsAppProviderHelper();
+                                        var (success, resultMessage) = await whatsAppProvider.SendWhatsAppMessage(res.client_phone?.ToString(), message);
+                                        
+                                        if (success)
+                                        {
+                                            logMessages.Add($"✅ WhatsApp envoyé à {res.client_phone} via {whatsAppProvider.GetProviderName()}");
+                                        }
+                                        else
+                                        {
+                                            logMessages.Add($"❌ Erreur envoi: {resultMessage}");
+                                            continue;
+                                        }
+
+// ==============================================
+// FIN DE LA MODIFICATION
+// ============================================== 

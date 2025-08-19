@@ -4,6 +4,10 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// 🆕 NOUVEAU: Import correction orthographique
+import { TypoCorrector } from './typo-correction/typo-corrector.ts';
+import { TypoCorrectorConfig, ULTRA_SAFE_CONFIG } from './typo-correction/config/typo-config.ts';
+
 // Types
 export interface SearchResult {
   id: string;
@@ -35,6 +39,10 @@ export interface SearchConfig {
   primarySource: 'database' | 'google_places';
   fuzzyThreshold: number;
   maxSuggestions: number;
+  
+  // 🆕 NOUVEAU: Configuration correction orthographique
+  enableTypoCorrection?: boolean;
+  typoConfig?: TypoCorrectorConfig;
 }
 
 // Configuration par défaut
@@ -392,10 +400,28 @@ export class LocationSearchService {
     }
     
     try {
-      this.log(`🌐 Appel Google Places API pour: "${query}"`, 'detailed');
+      // 🆕 NOUVEAU: Correction orthographique avant appel Google Places
+      let finalQuery = query;
       
-      // 🔥 VRAIE API GOOGLE PLACES ACTIVÉE
-      const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query + ' Conakry Guinea')}&key=${this.config.googleApiKey}`;
+      if (this.config.enableTypoCorrection && this.config.typoConfig) {
+        const corrector = new TypoCorrector(this.config.typoConfig);
+        const correction = corrector.correctQuery(query);
+        
+        if (correction.changed && correction.success) {
+          finalQuery = correction.corrected;
+          this.log(`🔧 Correction orthographique: "${query}" → "${finalQuery}"`, 'minimal');
+          
+          // Log détaillé des corrections appliquées
+          correction.appliedCorrections.forEach(c => {
+            this.log(`   [${c.category.toUpperCase()}] "${c.from}" → "${c.to}" (${(c.confidence * 100).toFixed(1)}%)`, 'detailed');
+          });
+        }
+      }
+      
+      this.log(`🌐 Appel Google Places API pour: "${finalQuery}"`, 'detailed');
+      
+      // 🔥 VRAIE API GOOGLE PLACES ACTIVÉE (avec query corrigée)
+      const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(finalQuery + ' Conakry Guinea')}&key=${this.config.googleApiKey}`;
       
       this.log(`🔗 URL Google: ${url.replace(this.config.googleApiKey, 'API_KEY_HIDDEN')}`, 'debug');
       
@@ -417,7 +443,7 @@ export class LocationSearchService {
       // Traiter les résultats Google Places
       const results = data.results.slice(0, options.maxResults || 5).map((place: any, index: number) => ({
         id: `google_${place.place_id}`, // ID unique basé sur place_id Google
-        name: place.name,
+        name: query,
         address: place.formatted_address,
         coords: {
           lat: place.geometry.location.lat,
@@ -614,7 +640,14 @@ const DEFAULT_BOT_CONFIG: SearchConfig = {
   primarySource: 'google_places', // 🔥 MODIFIÉ: Google Places en priorité 1
   fuzzyThreshold: 0.3,
   maxSuggestions: 10,
-  logLevel: 'minimal'
+  logLevel: 'minimal',
+  
+  // 🆕 NOUVEAU: Configuration correction orthographique (DÉSACTIVÉE par défaut)
+  enableTypoCorrection: false,  // 🔒 SÉCURITÉ: Désactivé pour déploiement initial
+  typoConfig: {
+    ...ULTRA_SAFE_CONFIG,
+    enabled: false  // 🔒 Double sécurité: désactivé dans la config aussi
+  }
 };
 
 // Fonction simplifiée pour le bot (remplace searchAdresse)
@@ -629,21 +662,20 @@ export async function searchLocation(query: string, supabaseUrl?: string, supaba
     initializeSearchService(config);
   }
   
-  // Rechercher
-  const results = await searchLocationGeneric(query, { maxResults: 1 });
+  // Rechercher (MODIFIÉ: 8 résultats au lieu de 1 pour suggestions multiples)
+  const results = await searchLocationGeneric(query, { maxResults: 8 });
   
-  // Retourner le premier résultat dans le format attendu par le bot
+  // MODIFICATION MINIMALISTE : Retourner TOUS les résultats formatés pour suggestions multiples
   if (results.length > 0) {
-    const result = results[0];
-    return {
+    return results.map(result => ({
       id: result.id,
       nom: result.name,
       adresse_complete: result.address,
       latitude: result.coords?.lat,
       longitude: result.coords?.lng,
-      source: result.source, // Source de la recherche (database_* ou google_places)
+      source: result.source,
       score: result.score
-    };
+    }));
   }
   
   return null;

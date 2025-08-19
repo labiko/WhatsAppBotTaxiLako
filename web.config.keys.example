@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <appSettings>
+    <!-- 🔧 CONFIGURATION MULTI-PROVIDER WHATSAPP -->
+    <!-- Choisir le provider: "twilio" ou "greenapi" -->
+    <add key="WhatsApp:Provider" value="greenapi" />
+    
+    <!-- 🔵 CONFIGURATION TWILIO (existante) -->
+    <add key="Twilio:Sid" value="your_twilio_sid" />
+    <add key="Twilio:Token" value="your_twilio_token" />
+    <add key="Twilio:Number" value="your_twilio_whatsapp_number" />
+    
+    <!-- 🟢 CONFIGURATION GREEN API (nouvelle) -->
+    <add key="GreenAPI:InstanceId" value="7105303512" />
+    <add key="GreenAPI:Token" value="022e5da3d2e641ab99a3f70539270b187fbfa80635c44b71ad" />
+    <add key="GreenAPI:BaseUrl" value="https://api.green-api.com" />
+    
+    <!-- 🔧 AUTRES CONFIGURATIONS EXISTANTES -->
+    <add key="Supabase:Url" value="your_supabase_url" />
+    <add key="Supabase:Key" value="your_supabase_key" />
+    <add key="onesignalAppId" value="your_onesignal_app_id" />
+    <add key="onesignalApiKey" value="your_onesignal_api_key" />
+    <add key="onesignalUrl" value="https://onesignal.com/api/v1/notifications" />
+    <add key="onesignalChannelId" value="your_channel_id" />
+  </appSettings>
+</configuration>

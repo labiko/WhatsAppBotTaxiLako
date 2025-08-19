@@ -77,8 +77,20 @@
       "Bash(true)",
       "Bash(ls:*)",
       "Bash(diff:*)",
-      "Bash(del \"C:\\Users\\diall\\Documents\\LokoTaxi\\sql\\amelioration_systeme_annulation.sql\")"
+      "Bash(del \"C:\\Users\\diall\\Documents\\LokoTaxi\\sql\\amelioration_systeme_annulation.sql\")",
+      "Bash(supabase projects:*)",
+      "Bash(cmd /c \"copy index.ts backup_bot_v2_13_08_2025_14h_15mins.ts\")",
+      "WebFetch(domain:www.whatsmate.net)",
+      "WebFetch(domain:aisensy.com)",
+      "WebFetch(domain:green-api.com)",
+      "Bash(supabase functions logs:*)",
+      "WebFetch(domain:wasenderapi.com)",
+      "WebSearch"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "C:\\Users\\diall\\Documents\\LABICOTAXI\\LOGS\\BOT-V2"
+    ]
   }
 }

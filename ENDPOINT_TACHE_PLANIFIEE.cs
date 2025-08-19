@@ -1,247 +1,330 @@
-        public async Task<ActionResult> ProcessWhatsAppNotifications()
-        {
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+    public async Task<ActionResult> ProcessWhatsAppNotifications()
+ {
+     ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+     TaxiService taxiService = new TaxiService();
+     int processedCount = 0;
+     var startTime = DateTime.Now;
+     var logMessages = new List<string>();
 
-            int processedCount = 0;
-            var startTime = DateTime.Now;
-            var logMessages = new List<string>();
+     // Configuration depuis Web.config
+     var supabaseUrl = ConfigurationManager.AppSettings["Supabase:Url"];
+     var supabaseKey = ConfigurationManager.AppSettings["Supabase:Key"];
+     var twilioSid = ConfigurationManager.AppSettings["Twilio:Sid"];
+     var twilioToken = ConfigurationManager.AppSettings["Twilio:Token"];
+     var twilioNumber = ConfigurationManager.AppSettings["Twilio:Number"];
 
-            // Configuration depuis Web.config
-            var supabaseUrl = ConfigurationManager.AppSettings["Supabase:Url"];
-            var supabaseKey = ConfigurationManager.AppSettings["Supabase:Key"];
-            var twilioSid = ConfigurationManager.AppSettings["Twilio:Sid"];
-            var twilioToken = ConfigurationManager.AppSettings["Twilio:Token"];
-            var twilioNumber = ConfigurationManager.AppSettings["Twilio:Number"];
+     try
+     {
+         logMessages.Add($"🚀 Démarrage traitement notifications - {startTime:HH:mm:ss}");
 
-            try
-            {
-                logMessages.Add($"🚀 Démarrage traitement notifications - {startTime:HH:mm:ss}");
+         using (var httpClient = new HttpClient())
+         {
+             // 🔧 HEADERS SUPABASE CORRECTS
+             httpClient.DefaultRequestHeaders.Clear();
+             httpClient.DefaultRequestHeaders.Add("apikey", supabaseKey);
+             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
+             httpClient.DefaultRequestHeaders.Add("Prefer", "return=representation");
 
-                using (var httpClient = new HttpClient())
-                {
-                    // 🔧 HEADERS SUPABASE CORRECTS
-                    httpClient.DefaultRequestHeaders.Clear();
-                    httpClient.DefaultRequestHeaders.Add("apikey", supabaseKey);
-                    httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
-                    httpClient.DefaultRequestHeaders.Add("Prefer", "return=representation");
+             logMessages.Add("🔍 Test de connexion Supabase...");
 
-                    logMessages.Add("🔍 Test de connexion Supabase...");
+             // TEST DE CONNEXION D'ABORD
+             var testUrl = $"{supabaseUrl}/rest/v1/notifications_pending?select=count";
+             var testResponse = await httpClient.GetStringAsync(testUrl);
+             logMessages.Add($"✅ Connexion OK: {testResponse}");
 
-                    // TEST DE CONNEXION D'ABORD
-                    var testUrl = $"{supabaseUrl}/rest/v1/notifications_pending?select=count";
-                    var testResponse = await httpClient.GetStringAsync(testUrl);
-                    logMessages.Add($"✅ Connexion OK: {testResponse}");
+             // 1. Récupérer notifications en attente
+             var notifUrl = $"{supabaseUrl}/rest/v1/notifications_pending?processed_at=is.null&select=*";
+             logMessages.Add($"📋 Récupération notifications: {notifUrl}");
 
-                    // 1. Récupérer notifications en attente
-                    var notifUrl = $"{supabaseUrl}/rest/v1/notifications_pending?processed_at=is.null&select=*";
-                    logMessages.Add($"📋 Récupération notifications: {notifUrl}");
+             var notifResponse = await httpClient.GetStringAsync(notifUrl);
+             logMessages.Add($"📋 Réponse: {notifResponse}");
 
-                    var notifResponse = await httpClient.GetStringAsync(notifUrl);
-                    logMessages.Add($"📋 Réponse: {notifResponse}");
+             var notifications = JsonConvert.DeserializeObject<dynamic[]>(notifResponse);
+             logMessages.Add($"📊 {notifications.Length} notification(s) trouvée(s)");
 
-                    var notifications = JsonConvert.DeserializeObject<dynamic[]>(notifResponse);
-                    logMessages.Add($"📊 {notifications.Length} notification(s) trouvée(s)");
+             if (notifications.Length == 0)
+             {
+                 logMessages.Add("✅ Aucune notification à traiter");
+                 return Json(new
+                 {
+                     success = true,
+                     processed = 0,
+                     message = "Aucune notification en attente",
+                     logs = logMessages,
+                     duration = (DateTime.Now - startTime).TotalSeconds
+                 }, JsonRequestBehavior.AllowGet);
+             }
 
-                    if (notifications.Length == 0)
-                    {
-                        logMessages.Add("✅ Aucune notification à traiter");
-                        return Json(new
-                        {
-                            success = true,
-                            processed = 0,
-                            message = "Aucune notification en attente",
-                            logs = logMessages,
-                            duration = (DateTime.Now - startTime).TotalSeconds
-                        }, JsonRequestBehavior.AllowGet);
-                    }
+             foreach (var notif in notifications)
+             {
+                 try
+                 {
+                     logMessages.Add($"📤 Traitement notification: {notif.id} -> réservation: {notif.reservation_id}");
+                     logMessages.Add($"🔍 Type: {notif.type?.ToString() ?? "null"}, Created: {notif.created_at?.ToString() ?? "null"}");
 
-                    foreach (var notif in notifications)
-                    {
-                        try
-                        {
-                            logMessages.Add($"📤 Traitement notification: {notif.id} -> réservation: {notif.reservation_id}");
-                            logMessages.Add($"🔍 Type: {notif.type?.ToString() ?? "null"}, Created: {notif.created_at?.ToString() ?? "null"}");
+                     // Vérifier le type de notification
+                     string notificationType = notif.type?.ToString() ?? "reservation_accepted";
+                     logMessages.Add($"🔍 Type de notification: {notificationType}");
 
-                            // Vérifier le type de notification
-                            string notificationType = notif.type?.ToString() ?? "reservation_accepted";
-                            logMessages.Add($"🔍 Type de notification: {notificationType}");
+                     switch (notificationType)
+                     {
+                         case "auto_cancellation":
+                             // Gérer l'annulation automatique
+                             logMessages.Add($"❌ Traitement annulation automatique pour {notif.reservation_id}");
 
-                            switch (notificationType)
-                            {
-                                case "auto_cancellation":
-                                    // Gérer l'annulation automatique
-                                    logMessages.Add($"❌ Traitement annulation automatique pour {notif.reservation_id}");
+                             var cancelSuccess = await SendCancellationMessageAsync(notif.reservation_id.ToString(), httpClient, supabaseUrl, supabaseKey, twilioSid, twilioToken, twilioNumber, logMessages);
 
-                                    var cancelSuccess = await SendCancellationMessageAsync(notif.reservation_id.ToString(), httpClient, supabaseUrl, supabaseKey, twilioSid, twilioToken, twilioNumber, logMessages);
+                             if (cancelSuccess)
+                             {
+                                 var markSuccess = await MarkNotificationAsProcessedAsync(notif.id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
+                                 logMessages.Add($"✅ Message d'annulation envoyé et marqué comme traité: {markSuccess}");
+                                 if (markSuccess) processedCount++;
+                             }
+                             else
+                             {
+                                 logMessages.Add($"❌ Échec envoi message d'annulation");
+                                 continue;
+                             }
+                             break;
 
-                                    if (cancelSuccess)
-                                    {
-                                        var markSuccess = await MarkNotificationAsProcessedAsync(notif.id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
-                                        logMessages.Add($"✅ Message d'annulation envoyé et marqué comme traité: {markSuccess}");
-                                        if (markSuccess) processedCount++;
-                                    }
-                                    else
-                                    {
-                                        logMessages.Add($"❌ Échec envoi message d'annulation");
-                                        continue;
-                                    }
-                                    break;
+                         case "course_validated":
+                             // Demande de notation après validation de course
+                             logMessages.Add($"⭐ Demande de notation pour {notif.reservation_id}");
 
-                                case "course_validated":
-                                    // Demande de notation après validation de course
-                                    logMessages.Add($"⭐ Demande de notation pour {notif.reservation_id}");
+                             var ratingSuccess = await SendRatingRequestMessageAsync(notif.reservation_id.ToString(), httpClient, supabaseUrl, supabaseKey, twilioSid, twilioToken, twilioNumber, logMessages);
 
-                                    var ratingSuccess = await SendRatingRequestMessageAsync(notif.reservation_id.ToString(), httpClient, supabaseUrl, supabaseKey, twilioSid, twilioToken, twilioNumber, logMessages);
+                             if (ratingSuccess)
+                             {
+                                 // Préparer la session pour la notation via Edge Function
+                                 var prepareSuccess = await PrepareRatingSessionAsync(notif.reservation_id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
+                                 logMessages.Add($"🎯 Préparation session notation: {prepareSuccess}");
 
-                                    if (ratingSuccess)
-                                    {
-                                        // Préparer la session pour la notation via Edge Function
-                                        var prepareSuccess = await PrepareRatingSessionAsync(notif.reservation_id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
-                                        logMessages.Add($"🎯 Préparation session notation: {prepareSuccess}");
+                                 var markSuccess = await MarkNotificationAsProcessedAsync(notif.id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
+                                 logMessages.Add($"✅ Message de notation envoyé et marqué comme traité: {markSuccess}");
+                                 if (markSuccess) processedCount++;
+                             }
+                             else
+                             {
+                                 logMessages.Add($"❌ Échec envoi message de notation");
+                                 continue;
+                             }
+                             break;
 
-                                        var markSuccess = await MarkNotificationAsProcessedAsync(notif.id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
-                                        logMessages.Add($"✅ Message de notation envoyé et marqué comme traité: {markSuccess}");
-                                        if (markSuccess) processedCount++;
-                                    }
-                                    else
-                                    {
-                                        logMessages.Add($"❌ Échec envoi message de notation");
-                                        continue;
-                                    }
-                                    break;
+                         case "thanks_client":
+                             // Message de remerciement après notation
+                             logMessages.Add($"🙏 Message de remerciement pour {notif.reservation_id}");
 
-                                case "thanks_client":
-                                    // Message de remerciement après notation
-                                    logMessages.Add($"🙏 Message de remerciement pour {notif.reservation_id}");
+                             var thanksSuccess = await taxiService.SendThanksMessageAsync(notif.reservation_id.ToString(), httpClient, supabaseUrl, supabaseKey, twilioSid, twilioToken, twilioNumber, logMessages);
 
-                                    var thanksSuccess = await SendThanksMessageAsync(notif.reservation_id.ToString(), httpClient, supabaseUrl, supabaseKey, twilioSid, twilioToken, twilioNumber, logMessages);
+                             if (thanksSuccess)
+                             {
+                                 var markSuccess = await MarkNotificationAsProcessedAsync(notif.id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
+                                 logMessages.Add($"✅ Message de remerciement envoyé et marqué comme traité: {markSuccess}");
+                                 if (markSuccess) processedCount++;
+                             }
+                             else
+                             {
+                                 logMessages.Add($"❌ Échec envoi message de remerciement");
+                                 continue;
+                             }
+                             break;
 
-                                    if (thanksSuccess)
-                                    {
-                                        var markSuccess = await MarkNotificationAsProcessedAsync(notif.id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
-                                        logMessages.Add($"✅ Message de remerciement envoyé et marqué comme traité: {markSuccess}");
-                                        if (markSuccess) processedCount++;
-                                    }
-                                    else
-                                    {
-                                        logMessages.Add($"❌ Échec envoi message de remerciement");
-                                        continue;
-                                    }
-                                    break;
+                         case "reservation_accepted":
+                         default:
+                             // Traitement normal - conducteur assigné
+                             logMessages.Add($"🚖 Traitement assignation conducteur pour {notif.reservation_id}");
 
-                                case "reservation_accepted":
-                                default:
-                                    // Traitement normal - conducteur assigné
-                                    logMessages.Add($"🚖 Traitement assignation conducteur pour {notif.reservation_id}");
-                                    
-                                    // 2. Récupérer réservation avec conducteur
-                                    var resUrl = $"{supabaseUrl}/rest/v1/reservations?id=eq.{notif.reservation_id}&select=*,conducteurs(*)";
-                                    var resResponse = await httpClient.GetStringAsync(resUrl);
-                                    var reservations = JsonConvert.DeserializeObject<dynamic[]>(resResponse);
+                             // 2. Récupérer réservation avec conducteur et coordonnées extraites
+                             var resUrl = $"{supabaseUrl}/rest/v1/rpc/get_reservation_with_coords";
+                             var resRequest = new HttpRequestMessage(HttpMethod.Post, resUrl);
+                             resRequest.Headers.Add("Authorization", $"Bearer {supabaseKey}");
+                             resRequest.Headers.Add("apikey", supabaseKey);
+                             resRequest.Content = new StringContent(
+                                 JsonConvert.SerializeObject(new { p_reservation_id = notif.reservation_id }),
+                                 System.Text.Encoding.UTF8,
+                                 "application/json"
+                             );
+                             var resResponse = await httpClient.SendAsync(resRequest);
+                             var resContent = await resResponse.Content.ReadAsStringAsync();
 
-                                    if (reservations.Length > 0)
-                                    {
-                                        var res = reservations[0];
-                                        var cond = res.conducteurs;
+                             logMessages.Add($"🔍 DEBUG Response: {resContent.Substring(0, Math.Min(200, resContent.Length))}");
 
-                                        logMessages.Add($"🚖 Conducteur: {cond.prenom} {cond.nom} pour client: {res.client_phone}");
+                             // La fonction RPC peut retourner un objet ou un tableau
+                             dynamic reservations = null;
+                             dynamic res = null;
 
-                                        // 3. Calculer temps d'arrivée dynamique
-                                        var distanceKm = res.distance_km != null ? (decimal)res.distance_km : 5m;
-                                        var etaMinutes = Math.Max(5, (int)Math.Round(distanceKm * 3)); // 3 min par km minimum 5 min
+                             if (resContent.StartsWith("["))
+                             {
+                                 // C'est un tableau
+                                 reservations = JsonConvert.DeserializeObject<dynamic[]>(resContent);
+                                 if (reservations.Length > 0)
+                                 {
+                                     res = reservations[0];
+                                 }
+                             }
+                             else if (resContent.StartsWith("{"))
+                             {
+                                 // C'est un objet direct (probablement une erreur)
+                                 var errorObj = JsonConvert.DeserializeObject<dynamic>(resContent);
+                                 if (errorObj.code != null)
+                                 {
+                                     logMessages.Add($"❌ Erreur fonction SQL: {errorObj.message ?? errorObj.code}");
+                                     // Fallback : utiliser la requête directe
+                                     var fallbackUrl = $"{supabaseUrl}/rest/v1/reservations?id=eq.{notif.reservation_id}&select=*,conducteurs(*)";
+                                     var fallbackResponse = await httpClient.GetStringAsync(fallbackUrl);
+                                     reservations = JsonConvert.DeserializeObject<dynamic[]>(fallbackResponse);
+                                     if (reservations.Length > 0)
+                                     {
+                                         res = reservations[0];
+                                     }
+                                 }
+                             }
 
-                                        // 4. Message WhatsApp ultra-compact
-                                        var message = $@"✅ *CONDUCTEUR ASSIGNÉ*
+                             if (res != null)
+                             {
 
-🚖 *{cond.prenom} {cond.nom}* • ⭐ {((decimal?)cond.note_moyenne ?? 4.5m):F1}/5
-📱 {cond.telephone}
-🚗 {cond.vehicle_couleur} {cond.vehicle_marque} {cond.vehicle_modele}
-🏷️ {cond.vehicle_plaque}
+                                 // Détecter si on a les champs de la fonction SQL ou les champs standards
+                                 bool hasExtractedCoords = res.client_lat != null;
 
-💰 *{res.prix_total ?? 0} GNF* • Arrivée dans ⏰ *{etaMinutes} min*
+                                 string conducteurPrenom = hasExtractedCoords ? res.conducteur_prenom?.ToString() : res.conducteurs?.prenom?.ToString();
+                                 string conducteurNom = hasExtractedCoords ? res.conducteur_nom?.ToString() : res.conducteurs?.nom?.ToString();
 
-Le conducteur vous contactera bientôt. Bon voyage! 🛣️";
+                                 logMessages.Add($"🚖 Conducteur: {conducteurPrenom} {conducteurNom} pour client: {res.client_phone}");
 
-                                        // 5. Envoyer WhatsApp via Twilio
-                                        using (var twilioClient = new HttpClient())
-                                        {
-                                            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{twilioSid}:{twilioToken}"));
-                                            twilioClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
+                                 // 3. Extraire les coordonnées (soit depuis la fonction SQL, soit depuis les champs PostGIS)
+                                 double clientLat, clientLon, conducteurLat, conducteurLon;
 
-                                            var formData = new FormUrlEncodedContent(new[]
-                                            {
-                                  new KeyValuePair<string, string>("From", $"whatsapp:{twilioNumber}"),
-                                  new KeyValuePair<string, string>("To", $"whatsapp:{res.client_phone}"),
-                                  new KeyValuePair<string, string>("Body", message)
-                              });
+                                 if (hasExtractedCoords)
+                                 {
+                                     // Utiliser les coordonnées extraites par la fonction SQL
+                                     clientLat = (double)(res.client_lat ?? 0.0);
+                                     clientLon = (double)(res.client_lon ?? 0.0);
+                                     conducteurLat = (double)(res.conducteur_lat ?? 0.0);
+                                     conducteurLon = (double)(res.conducteur_lon ?? 0.0);
+                                 }
+                                 else
+                                 {
+                                     // Fallback : essayer d'extraire depuis les champs PostGIS
+                                     clientLat = taxiService.ExtractLatitudeFromGeography(res.position_depart);
+                                     clientLon = taxiService.ExtractLongitudeFromGeography(res.position_depart);
+                                     conducteurLat = taxiService.ExtractLatitudeFromGeography(res.conducteurs?.position_actuelle);
+                                     conducteurLon = taxiService.ExtractLongitudeFromGeography(res.conducteurs?.position_actuelle);
+                                 }
 
-                                            var twilioResponse = await twilioClient.PostAsync($"https://api.twilio.com/2010-04-01/Accounts/{twilioSid}/Messages.json", formData);
+                                 logMessages.Add($"📍 Coordonnées Client: Lat={clientLat}, Lon={clientLon}");
+                                 logMessages.Add($"📍 Coordonnées Conducteur: Lat={conducteurLat}, Lon={conducteurLon}");
 
-                                            if (twilioResponse.IsSuccessStatusCode)
-                                            {
-                                                logMessages.Add($"✅ WhatsApp envoyé à {res.client_phone}");
-                                            }
-                                            else
-                                            {
-                                                var errorText = await twilioResponse.Content.ReadAsStringAsync();
-                                                logMessages.Add($"❌ Erreur Twilio {twilioResponse.StatusCode}: {errorText}");
-                                                continue;
-                                            }
-                                        }
+                                 // 4. Calculer distance réelle client-conducteur
+                                 var distanceKm = (decimal)taxiService.CalculateDistance(clientLat, clientLon, conducteurLat, conducteurLon);
+                                 // Coefficients différents moto/voiture pour approximer la distance routière
+                                 decimal coefficient = res.vehicle_type?.ToString() == "moto" ? 1.3m : 1.4m;
+                                 var distanceRouteKm = distanceKm * coefficient;
+                                 var etaMinutes = Math.Max(5, (int)Math.Round(distanceRouteKm * 3)); // 3 min par km minimum 5 min
 
-                                        var markSuccess = await MarkNotificationAsProcessedAsync(notif.id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
-                                        logMessages.Add($"📝 Notification marquée comme traitée: {markSuccess}");
+                                 // 4. Message WhatsApp amélioré avec formatage intelligent
+                                 var vehicleEmoji = res.vehicle_type?.ToString() == "moto" ? "🏍️" : "🚗";
 
-                                        processedCount++;
-                                    }
-                                    else
-                                    {
-                                        logMessages.Add($"⚠️ Réservation {notif.reservation_id} non trouvée");
-                                    }
-                                    break;
-                            }
+                                 // Adapter selon le format de données disponible
+                                 decimal noteMoyenne = hasExtractedCoords ?
+                                     (decimal?)(res.conducteur_note_moyenne) ?? 4.5m :
+                                     (decimal?)(res.conducteurs?.note_moyenne) ?? 4.5m;
 
-                            // Petit délai pour éviter le spam
-                            await Task.Delay(1000);
-                        }
-                        catch (Exception ex)
-                        {
-                            logMessages.Add($"❌ Erreur notification {notif.id}: {ex.Message}");
-                        }
-                    }
-                }
+                                 string telephone = hasExtractedCoords ?
+                                     res.conducteur_telephone?.ToString() :
+                                     res.conducteurs?.telephone?.ToString();
 
-                var duration = (DateTime.Now - startTime).TotalSeconds;
-                var resultMessage = $"✅ Traitement terminé: {processedCount} notification(s) traitée(s) en {duration:F1}s";
-                logMessages.Add(resultMessage);
+                                 string vehicleMarque = hasExtractedCoords ?
+                                     res.conducteur_vehicle_marque?.ToString() :
+                                     res.conducteurs?.vehicle_marque?.ToString();
 
-                return Json(new
-                {
-                    success = true,
-                    processed = processedCount,
-                    message = resultMessage,
-                    logs = logMessages,
-                    duration = duration
-                }, JsonRequestBehavior.AllowGet);
-            }
-            catch (Exception ex)
-            {
-                var duration = (DateTime.Now - startTime).TotalSeconds;
-                logMessages.Add($"❌ ERREUR GLOBALE: {ex.Message}");
+                                 string vehicleModele = hasExtractedCoords ?
+                                     res.conducteur_vehicle_modele?.ToString() :
+                                     res.conducteurs?.vehicle_modele?.ToString();
 
-                return Json(new
-                {
-                    success = false,
-                    processed = 0,
-                    message = $"Erreur: {ex.Message}",
-                    logs = logMessages,
-                    duration = duration,
-                    stackTrace = ex.ToString()
-                }, JsonRequestBehavior.AllowGet);
-            }
-        }
+                                 string vehiclePlaque = hasExtractedCoords ?
+                                     res.conducteur_vehicle_plaque?.ToString() :
+                                     res.conducteurs?.vehicle_plaque?.ToString();
 
+                                 var starsDisplay = taxiService.GenerateStarsFromRating(noteMoyenne);
+                                 var formattedPhone = taxiService.FormatPhoneDisplay(telephone);
+                                 var vehicleDescription = $"{vehicleMarque} {vehicleModele}";
+                                 var formattedPrice = taxiService.FormatPrice(res.prix_total);
 
+                                 var message = $"🎯 *TAXI CONFIRMÉ*\n\n" +
+                                             $"{vehicleEmoji} *{conducteurPrenom} * {starsDisplay}\n" +
+                                             $"📞 {formattedPhone}\n" +
+                                             $"🚗 {vehicleDescription}\n" +
+                                             $"🏷️ {vehiclePlaque}\n" +
+                                             $"🔑 Code: *{res.code_validation}*\n" +
+                                             $"📏 Distance: *{distanceRouteKm:F1} km*\n" +
+                                             $"⏱️ Arrive dans *{etaMinutes} min*\n\n" +
+                                             $"💰 *{formattedPrice} GNF*\n\n" +
+                                             $"🚀 Votre conducteur arrive !\n" +
+                                             $"📱 Il vous contactera bientôt";
+
+                                 // 🔧 5. Log du message pour debug
+                                 logMessages.Add($"📱 Message à envoyer: {message.Replace("\n", " ")}");
+                                 logMessages.Add($"📏 Distance vol d'oiseau: {distanceKm:F1} km → Distance route: {distanceRouteKm:F1} km (×{coefficient})");
+
+                                 // 🔧 6. Envoyer WhatsApp via service multi-provider
+                                 bool whatsappSuccess = await taxiService.SendWhatsAppMessage(res.client_phone.ToString(), message, logMessages);
+
+                                 if (!whatsappSuccess)
+                                 {
+                                     continue;
+                                 }
+
+                                 var markSuccess = await MarkNotificationAsProcessedAsync(notif.id.ToString(), httpClient, supabaseUrl, supabaseKey, logMessages);
+                                 logMessages.Add($"📝 Notification marquée comme traitée: {markSuccess}");
+
+                                 processedCount++;
+                             }
+                             else
+                             {
+                                 logMessages.Add($"❌ Aucune réservation trouvée pour ID: {notif.reservation_id}");
+                             }
+                             break;
+                     }
+
+                     // Petit délai pour éviter le spam
+                     await Task.Delay(1000);
+                 }
+                 catch (Exception ex)
+                 {
+                     logMessages.Add($"❌ Erreur notification {notif.id}: {ex.Message}");
+                 }
+             }
+         }
+
+         var duration = (DateTime.Now - startTime).TotalSeconds;
+         var resultMessage = $"✅ Traitement terminé: {processedCount} notification(s) traitée(s) en {duration:F1}s";
+         logMessages.Add(resultMessage);
+
+         return Json(new
+         {
+             success = true,
+             processed = processedCount,
+             message = resultMessage,
+             logs = logMessages,
+             duration = duration
+         }, JsonRequestBehavior.AllowGet);
+     }
+     catch (Exception ex)
+     {
+         var duration = (DateTime.Now - startTime).TotalSeconds;
+         logMessages.Add($"❌ ERREUR GLOBALE: {ex.Message}");
+
+         return Json(new
+         {
+             success = false,
+             processed = 0,
+             message = $"Erreur: {ex.Message}",
+             logs = logMessages,
+             duration = duration,
+             stackTrace = ex.ToString()
+         }, JsonRequestBehavior.AllowGet);
+     }
+ }
         private async Task<bool> SendCancellationMessageAsync(string reservationId, HttpClient httpClient, string supabaseUrl, string supabaseKey, string twilioSid, string twilioToken, string twilioNumber, List<string> logMessages)
         {
             try
@@ -303,33 +386,75 @@ Le conducteur vous contactera bientôt. Bon voyage! 🛣️";
                         message = message.Replace("conducteur", "motard");
                     }
 
-                    // Envoyer WhatsApp via Twilio
-                    using (var twilioClient = new HttpClient())
+                    // 🔧 Envoyer WhatsApp via provider configuré (Twilio ou Green API)
+                    var whatsappProvider = ConfigurationManager.AppSettings["WhatsApp:Provider"] ?? "twilio";
+                    bool whatsappSuccess = false;
+                    
+                    if (whatsappProvider == "greenapi")
                     {
-                        var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{twilioSid}:{twilioToken}"));
-                        twilioClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
-
-                        var formData = new FormUrlEncodedContent(new[]
+                        // 🟢 ENVOYER VIA GREEN API
+                        var greenApiInstanceId = ConfigurationManager.AppSettings["GreenAPI:InstanceId"];
+                        var greenApiToken = ConfigurationManager.AppSettings["GreenAPI:Token"];
+                        var greenApiBaseUrl = ConfigurationManager.AppSettings["GreenAPI:BaseUrl"] ?? "https://api.green-api.com";
+                        
+                        using (var greenApiClient = new HttpClient())
                         {
-                            new KeyValuePair<string, string>("From", $"whatsapp:{twilioNumber}"),
-                            new KeyValuePair<string, string>("To", $"whatsapp:{normalizedPhone}"),
-                            new KeyValuePair<string, string>("Body", message)
-                        });
-
-                        logMessages.Add($"🔍 Envoi Twilio vers: {normalizedPhone}");
-
-                        var twilioResponse = await twilioClient.PostAsync($"https://api.twilio.com/2010-04-01/Accounts/{twilioSid}/Messages.json", formData);
-
-                        logMessages.Add($"🔍 Réponse Twilio: {twilioResponse.StatusCode}");
-
-                        if (!twilioResponse.IsSuccessStatusCode)
-                        {
-                            var errorContent = await twilioResponse.Content.ReadAsStringAsync();
-                            logMessages.Add($"❌ Erreur Twilio: {errorContent}");
+                            var phoneForGreenApi = normalizedPhone.Replace("+", "");
+                            if (!phoneForGreenApi.StartsWith("224") && phoneForGreenApi.StartsWith("6"))
+                            {
+                                phoneForGreenApi = "224" + phoneForGreenApi;
+                            }
+                            
+                            var greenApiUrl = $"{greenApiBaseUrl}/waInstance{greenApiInstanceId}/sendMessage/{greenApiToken}";
+                            var payload = new { chatId = $"{phoneForGreenApi}@c.us", message = message };
+                            var jsonPayload = JsonConvert.SerializeObject(payload);
+                            var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                            
+                            logMessages.Add($"🟢 Envoi Green API vers: {phoneForGreenApi}");
+                            
+                            var greenApiResponse = await greenApiClient.PostAsync(greenApiUrl, content);
+                            whatsappSuccess = greenApiResponse.IsSuccessStatusCode;
+                            
+                            logMessages.Add($"🔍 Réponse Green API: {greenApiResponse.StatusCode}");
+                            
+                            if (!whatsappSuccess)
+                            {
+                                var errorContent = await greenApiResponse.Content.ReadAsStringAsync();
+                                logMessages.Add($"❌ Erreur Green API: {errorContent}");
+                            }
                         }
-
-                        return twilioResponse.IsSuccessStatusCode;
                     }
+                    else
+                    {
+                        // 🔵 ENVOYER VIA TWILIO (comportement original)
+                        using (var twilioClient = new HttpClient())
+                        {
+                            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{twilioSid}:{twilioToken}"));
+                            twilioClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
+
+                            var formData = new FormUrlEncodedContent(new[]
+                            {
+                                new KeyValuePair<string, string>("From", $"whatsapp:{twilioNumber}"),
+                                new KeyValuePair<string, string>("To", $"whatsapp:{normalizedPhone}"),
+                                new KeyValuePair<string, string>("Body", message)
+                            });
+
+                            logMessages.Add($"🔵 Envoi Twilio vers: {normalizedPhone}");
+
+                            var twilioResponse = await twilioClient.PostAsync($"https://api.twilio.com/2010-04-01/Accounts/{twilioSid}/Messages.json", formData);
+                            whatsappSuccess = twilioResponse.IsSuccessStatusCode;
+                            
+                            logMessages.Add($"🔍 Réponse Twilio: {twilioResponse.StatusCode}");
+
+                            if (!whatsappSuccess)
+                            {
+                                var errorContent = await twilioResponse.Content.ReadAsStringAsync();
+                                logMessages.Add($"❌ Erreur Twilio: {errorContent}");
+                            }
+                        }
+                    }
+                    
+                    return whatsappSuccess;
                 }
                 else
                 {
@@ -500,33 +625,75 @@ Votre avis nous aide à améliorer notre service ! 🙏";
                         return false;
                     }
 
-                    // Envoyer WhatsApp via Twilio
-                    using (var twilioClient = new HttpClient())
+                    // 🔧 Envoyer WhatsApp via provider configuré (Twilio ou Green API)
+                    var whatsappProvider = ConfigurationManager.AppSettings["WhatsApp:Provider"] ?? "twilio";
+                    bool whatsappSuccess = false;
+                    
+                    if (whatsappProvider == "greenapi")
                     {
-                        var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{twilioSid}:{twilioToken}"));
-                        twilioClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
-
-                        var formData = new FormUrlEncodedContent(new[]
+                        // 🟢 ENVOYER VIA GREEN API
+                        var greenApiInstanceId = ConfigurationManager.AppSettings["GreenAPI:InstanceId"];
+                        var greenApiToken = ConfigurationManager.AppSettings["GreenAPI:Token"];
+                        var greenApiBaseUrl = ConfigurationManager.AppSettings["GreenAPI:BaseUrl"] ?? "https://api.green-api.com";
+                        
+                        using (var greenApiClient = new HttpClient())
                         {
-                            new KeyValuePair<string, string>("From", $"whatsapp:{twilioNumber}"),
-                            new KeyValuePair<string, string>("To", $"whatsapp:{normalizedPhone}"),
-                            new KeyValuePair<string, string>("Body", message)
-                        });
-
-                        logMessages.Add($"🔍 Envoi Twilio demande notation vers: {normalizedPhone}");
-
-                        var twilioResponse = await twilioClient.PostAsync($"https://api.twilio.com/2010-04-01/Accounts/{twilioSid}/Messages.json", formData);
-
-                        logMessages.Add($"🔍 Réponse Twilio: {twilioResponse.StatusCode}");
-
-                        if (!twilioResponse.IsSuccessStatusCode)
-                        {
-                            var errorContent = await twilioResponse.Content.ReadAsStringAsync();
-                            logMessages.Add($"❌ Erreur Twilio: {errorContent}");
+                            var phoneForGreenApi = normalizedPhone.Replace("+", "");
+                            if (!phoneForGreenApi.StartsWith("224") && phoneForGreenApi.StartsWith("6"))
+                            {
+                                phoneForGreenApi = "224" + phoneForGreenApi;
+                            }
+                            
+                            var greenApiUrl = $"{greenApiBaseUrl}/waInstance{greenApiInstanceId}/sendMessage/{greenApiToken}";
+                            var payload = new { chatId = $"{phoneForGreenApi}@c.us", message = message };
+                            var jsonPayload = JsonConvert.SerializeObject(payload);
+                            var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                            
+                            logMessages.Add($"🟢 Envoi Green API demande notation vers: {phoneForGreenApi}");
+                            
+                            var greenApiResponse = await greenApiClient.PostAsync(greenApiUrl, content);
+                            whatsappSuccess = greenApiResponse.IsSuccessStatusCode;
+                            
+                            logMessages.Add($"🔍 Réponse Green API: {greenApiResponse.StatusCode}");
+                            
+                            if (!whatsappSuccess)
+                            {
+                                var errorContent = await greenApiResponse.Content.ReadAsStringAsync();
+                                logMessages.Add($"❌ Erreur Green API: {errorContent}");
+                            }
                         }
-
-                        return twilioResponse.IsSuccessStatusCode;
                     }
+                    else
+                    {
+                        // 🔵 ENVOYER VIA TWILIO (comportement original)
+                        using (var twilioClient = new HttpClient())
+                        {
+                            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{twilioSid}:{twilioToken}"));
+                            twilioClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
+
+                            var formData = new FormUrlEncodedContent(new[]
+                            {
+                                new KeyValuePair<string, string>("From", $"whatsapp:{twilioNumber}"),
+                                new KeyValuePair<string, string>("To", $"whatsapp:{normalizedPhone}"),
+                                new KeyValuePair<string, string>("Body", message)
+                            });
+
+                            logMessages.Add($"🔵 Envoi Twilio demande notation vers: {normalizedPhone}");
+
+                            var twilioResponse = await twilioClient.PostAsync($"https://api.twilio.com/2010-04-01/Accounts/{twilioSid}/Messages.json", formData);
+                            whatsappSuccess = twilioResponse.IsSuccessStatusCode;
+                            
+                            logMessages.Add($"🔍 Réponse Twilio: {twilioResponse.StatusCode}");
+
+                            if (!whatsappSuccess)
+                            {
+                                var errorContent = await twilioResponse.Content.ReadAsStringAsync();
+                                logMessages.Add($"❌ Erreur Twilio: {errorContent}");
+                            }
+                        }
+                    }
+                    
+                    return whatsappSuccess;
                 }
                 else
                 {
@@ -610,12 +777,18 @@ Votre avis nous aide à améliorer notre service ! 🙏";
                 // Message de remerciement personnalisé
                 var message = @"🙏 *MERCI POUR VOTRE ÉVALUATION !*
 
-Votre avis nous aide à améliorer notre service et à récompenser nos meilleurs conducteurs.
+Votre avis nous aide à améliorer notre service.
 
-🚖 *Besoin d'un nouveau taxi ?*
-Écrivez simplement 'taxi' et nous vous trouverons un conducteur rapidement !
+💾 *Sauvegarder ce point de départ ?*
+Tapez un nom pour l'enregistrer :
 
-✨ Merci de faire confiance à LokoTaxi ! ✨";
+🏠 mon domicile
+🏢 mon bureau  
+📍 [ou n'importe quel nom]
+
+✨ Cette adresse sera proposée dans vos futures réservations !
+
+_Tapez 'taxi' pour une nouvelle course_";
 
                 // Récupérer le client_phone depuis la réservation
                 var resUrl = $"{supabaseUrl}/rest/v1/reservations?id=eq.{reservationId}&select=client_phone,note_conducteur";
@@ -656,33 +829,75 @@ Votre avis nous aide à améliorer notre service et à récompenser nos meilleur
                         return false;
                     }
 
-                    // Envoyer WhatsApp via Twilio
-                    using (var twilioClient = new HttpClient())
+                    // 🔧 Envoyer WhatsApp via provider configuré (Twilio ou Green API)
+                    var whatsappProvider = ConfigurationManager.AppSettings["WhatsApp:Provider"] ?? "twilio";
+                    bool whatsappSuccess = false;
+                    
+                    if (whatsappProvider == "greenapi")
                     {
-                        var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{twilioSid}:{twilioToken}"));
-                        twilioClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
-
-                        var formData = new FormUrlEncodedContent(new[]
+                        // 🟢 ENVOYER VIA GREEN API
+                        var greenApiInstanceId = ConfigurationManager.AppSettings["GreenAPI:InstanceId"];
+                        var greenApiToken = ConfigurationManager.AppSettings["GreenAPI:Token"];
+                        var greenApiBaseUrl = ConfigurationManager.AppSettings["GreenAPI:BaseUrl"] ?? "https://api.green-api.com";
+                        
+                        using (var greenApiClient = new HttpClient())
                         {
-                            new KeyValuePair<string, string>("From", $"whatsapp:{twilioNumber}"),
-                            new KeyValuePair<string, string>("To", $"whatsapp:{normalizedPhone}"),
-                            new KeyValuePair<string, string>("Body", message)
-                        });
-
-                        logMessages.Add($"🔍 Envoi Twilio remerciement vers: {normalizedPhone}");
-
-                        var twilioResponse = await twilioClient.PostAsync($"https://api.twilio.com/2010-04-01/Accounts/{twilioSid}/Messages.json", formData);
-
-                        logMessages.Add($"🔍 Réponse Twilio: {twilioResponse.StatusCode}");
-
-                        if (!twilioResponse.IsSuccessStatusCode)
-                        {
-                            var errorContent = await twilioResponse.Content.ReadAsStringAsync();
-                            logMessages.Add($"❌ Erreur Twilio: {errorContent}");
+                            var phoneForGreenApi = normalizedPhone.Replace("+", "");
+                            if (!phoneForGreenApi.StartsWith("224") && phoneForGreenApi.StartsWith("6"))
+                            {
+                                phoneForGreenApi = "224" + phoneForGreenApi;
+                            }
+                            
+                            var greenApiUrl = $"{greenApiBaseUrl}/waInstance{greenApiInstanceId}/sendMessage/{greenApiToken}";
+                            var payload = new { chatId = $"{phoneForGreenApi}@c.us", message = message };
+                            var jsonPayload = JsonConvert.SerializeObject(payload);
+                            var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                            
+                            logMessages.Add($"🟢 Envoi Green API remerciement vers: {phoneForGreenApi}");
+                            
+                            var greenApiResponse = await greenApiClient.PostAsync(greenApiUrl, content);
+                            whatsappSuccess = greenApiResponse.IsSuccessStatusCode;
+                            
+                            logMessages.Add($"🔍 Réponse Green API: {greenApiResponse.StatusCode}");
+                            
+                            if (!whatsappSuccess)
+                            {
+                                var errorContent = await greenApiResponse.Content.ReadAsStringAsync();
+                                logMessages.Add($"❌ Erreur Green API: {errorContent}");
+                            }
                         }
-
-                        return twilioResponse.IsSuccessStatusCode;
                     }
+                    else
+                    {
+                        // 🔵 ENVOYER VIA TWILIO (comportement original)
+                        using (var twilioClient = new HttpClient())
+                        {
+                            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{twilioSid}:{twilioToken}"));
+                            twilioClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
+
+                            var formData = new FormUrlEncodedContent(new[]
+                            {
+                                new KeyValuePair<string, string>("From", $"whatsapp:{twilioNumber}"),
+                                new KeyValuePair<string, string>("To", $"whatsapp:{normalizedPhone}"),
+                                new KeyValuePair<string, string>("Body", message)
+                            });
+
+                            logMessages.Add($"🔵 Envoi Twilio remerciement vers: {normalizedPhone}");
+
+                            var twilioResponse = await twilioClient.PostAsync($"https://api.twilio.com/2010-04-01/Accounts/{twilioSid}/Messages.json", formData);
+                            whatsappSuccess = twilioResponse.IsSuccessStatusCode;
+                            
+                            logMessages.Add($"🔍 Réponse Twilio: {twilioResponse.StatusCode}");
+
+                            if (!whatsappSuccess)
+                            {
+                                var errorContent = await twilioResponse.Content.ReadAsStringAsync();
+                                logMessages.Add($"❌ Erreur Twilio: {errorContent}");
+                            }
+                        }
+                    }
+                    
+                    return whatsappSuccess;
                 }
                 else
                 {
@@ -749,3 +964,195 @@ Votre avis nous aide à améliorer notre service et à récompenser nos meilleur
 
             return null; // Numéro invalide
         }
+
+        // ========================================
+        // 🎨 FONCTIONS HELPER FORMATAGE MESSAGE
+        // ========================================
+
+        /// <summary>
+        /// Génère affichage étoiles basé sur note réelle
+        /// </summary>
+        private string GenerateStarsFromRating(decimal rating)
+        {
+            int fullStars = (int)Math.Floor(rating);
+            bool hasHalfStar = (rating - fullStars) >= 0.5m;
+            
+            string stars = "";
+            for (int i = 0; i < fullStars && i < 5; i++)
+            {
+                stars += "★";
+            }
+            if (hasHalfStar && fullStars < 5)
+            {
+                stars += "⭐";
+            }
+            
+            return $"{stars} ({rating:F1})";
+        }
+
+        /// <summary>
+        /// Formate numéro téléphone avec espaces
+        /// </summary>
+        private string FormatPhoneDisplay(string phone)
+        {
+            if (string.IsNullOrEmpty(phone)) return "N/A";
+            
+            // Nettoyer le numéro
+            phone = phone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "");
+            
+            // Format Guinée : +224 XX XX XX XXX
+            if (phone.StartsWith("224") && phone.Length >= 12)
+            {
+                return $"+224 {phone.Substring(3, 2)} {phone.Substring(5, 2)} {phone.Substring(7, 2)} {phone.Substring(9)}";
+            }
+            
+            // Format France : +33 X XX XX XX XX
+            if (phone.StartsWith("33") && phone.Length >= 10)
+            {
+                return $"+33 {phone.Substring(2, 1)} {phone.Substring(3, 2)} {phone.Substring(5, 2)} {phone.Substring(7, 2)} {phone.Substring(9, 2)}";
+            }
+            
+            // Si commence par +, garder tel quel mais ajouter espaces
+            if (phone.StartsWith("+"))
+            {
+                return phone;
+            }
+            
+            // Par défaut, ajouter +224 et formater
+            if (phone.Length >= 9)
+            {
+                return $"+224 {phone.Substring(0, 2)} {phone.Substring(2, 2)} {phone.Substring(4, 2)} {phone.Substring(6)}";
+            }
+            
+            return phone;
+        }
+
+        /// <summary>
+        /// Construit description véhicule avec données existantes
+        /// </summary>
+        private string BuildVehicleDescription(dynamic cond)
+        {
+            var parts = new List<string>();
+            
+            if (cond.vehicle_couleur != null && !string.IsNullOrEmpty(cond.vehicle_couleur.ToString()))
+            {
+                string couleur = cond.vehicle_couleur.ToString();
+                if (couleur != "null")
+                    parts.Add(couleur);
+            }
+            
+            if (cond.vehicle_marque != null && !string.IsNullOrEmpty(cond.vehicle_marque.ToString()))
+            {
+                string marque = cond.vehicle_marque.ToString();
+                if (marque != "null")
+                    parts.Add(marque);
+            }
+            
+            if (cond.vehicle_modele != null && !string.IsNullOrEmpty(cond.vehicle_modele.ToString()))
+            {
+                string modele = cond.vehicle_modele.ToString();
+                if (modele != "null")
+                    parts.Add(modele);
+            }
+            
+            return parts.Count > 0 ? string.Join(" ", parts) : "Véhicule";
+        }
+
+        /// <summary>
+        /// Formate prix avec espaces pour lisibilité
+        /// </summary>
+        private string FormatPrice(dynamic price)
+        {
+            if (price == null) return "0";
+            
+            decimal priceDecimal;
+            if (decimal.TryParse(price.ToString(), out priceDecimal))
+            {
+                return priceDecimal.ToString("N0", new System.Globalization.CultureInfo("fr-FR"));
+            }
+            
+            return price.ToString();
+        }
+
+        /// <summary>
+        /// Calcule distance entre deux points GPS (formule de Haversine)
+        /// </summary>
+        private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            const double R = 6371; // Rayon de la Terre en km
+            double dLat = (lat2 - lat1) * Math.PI / 180;
+            double dLon = (lon2 - lon1) * Math.PI / 180;
+            double lat1Rad = lat1 * Math.PI / 180;
+            double lat2Rad = lat2 * Math.PI / 180;
+            
+            double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) + 
+                      Math.Cos(lat1Rad) * Math.Cos(lat2Rad) * 
+                      Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+            double c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+            
+            return R * c;
+        }
+
+        /// <summary>
+        /// Extrait latitude depuis un objet PostGIS Geography
+        /// </summary>
+        private double ExtractLatitudeFromGeography(dynamic geography)
+        {
+            if (geography == null) return 0.0;
+            
+            try
+            {
+                // Essayer d'extraire depuis l'objet JSON/dynamic
+                if (geography.coordinates != null)
+                {
+                    var coords = geography.coordinates;
+                    if (coords.Count >= 2)
+                    {
+                        return (double)coords[1]; // Latitude = index 1 dans GeoJSON
+                    }
+                }
+                
+                // Fallback: essayer de parser comme string PostGIS
+                string geoString = geography.ToString();
+                // TODO: Parser le format binaire PostGIS si nécessaire
+                
+                return 0.0; // Coordonnée invalide
+            }
+            catch
+            {
+                return 0.0; // En cas d'erreur
+            }
+        }
+
+        /// <summary>
+        /// Extrait longitude depuis un objet PostGIS Geography
+        /// </summary>
+        private double ExtractLongitudeFromGeography(dynamic geography)
+        {
+            if (geography == null) return 0.0;
+            
+            try
+            {
+                // Essayer d'extraire depuis l'objet JSON/dynamic
+                if (geography.coordinates != null)
+                {
+                    var coords = geography.coordinates;
+                    if (coords.Count >= 2)
+                    {
+                        return (double)coords[0]; // Longitude = index 0 dans GeoJSON
+                    }
+                }
+                
+                // Fallback: essayer de parser comme string PostGIS
+                string geoString = geography.ToString();
+                // TODO: Parser le format binaire PostGIS si nécessaire
+                
+                return 0.0; // Coordonnée invalide
+            }
+            catch
+            {
+                return 0.0; // En cas d'erreur
+            }
+        }
+    }
+}

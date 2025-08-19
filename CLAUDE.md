@@ -1,6 +1,117 @@
 # ✅ Projet LokoTaxi - Système Audio IA 100% Opérationnel
 
-## 🚨 **RÈGLE CRITIQUE - BACKUP DU BOT OBLIGATOIRE**
+## 🚨 **RÈGLES CRITIQUES - DÉVELOPPEMENT ET SYNCHRONISATION**
+
+### **🚨 RÈGLE ABSOLUE - RÉUTILISATION DES FONCTIONS V2**
+
+**⚠️ INTERDICTION FORMELLE :**
+- **JAMAIS créer de nouvelles fonctions** si une fonction V2 équivalente existe
+- **JAMAIS supposer** comment une fonction marche - **TOUJOURS vérifier le code V2**
+- **JAMAIS utiliser searchLocationGeneric()** - **TOUJOURS utiliser searchLocation() de V2**
+- **JAMAIS perdre du temps** à debugger des problèmes causés par l'utilisation de mauvaises fonctions
+
+**✅ PROCÉDURE OBLIGATOIRE AVANT TOUTE MODIFICATION :**
+1. **CHERCHER** la fonction équivalente dans V2 (`whatsapp-bot-v2/`)
+2. **COPIER exactement** la logique et les paramètres de V2
+3. **TESTER** que l'appel fonctionne avant toute autre modification
+4. **V3 = V2 + IA uniquement** - Pas de nouvelles fonctions !
+
+## 📋 **ARCHITECTURE BOT V3 - ÉVOLUTION DE V2**
+
+**🎯 PRINCIPE FONDAMENTAL :**
+- **V3 = V2 + IA AVANCÉE** (analyse audio + texte complexe)
+- **V3 doit avoir exactement le MÊME WORKFLOW que V2** pour tous les cas standards
+- **WORKFLOW DE BASE IDENTIQUE** : États, transitions, messages, logique de session
+- **Seules améliorations autorisées** : Capacités IA supplémentaires (text-intelligence.ts + audio)
+
+**📋 RÉFÉRENCE OBLIGATOIRE - PLAN WORKFLOWS :**
+**Bot V3 doit STRICTEMENT respecter** : `PLAN_FINAL_WORKFLOWS_DETAILLES.md`
+- **Chaque modification** doit tenir compte de TOUS les autres workflows
+- **INTERDICTION absolue** de créer des régressions dans workflows existants
+- **TOUJOURS vérifier** l'impact sur workflows parallèles avant toute modification
+
+**✅ RÈGLES DE DÉVELOPPEMENT V3 :**
+1. **MÊME WORKFLOW DE BASE que V2** - États, transitions, messages identiques
+2. **TOUJOURS copier** la logique exacte de V2 pour les workflows standards  
+3. **JAMAIS modifier** les workflows de base (réservation, GPS, confirmation, etc.)
+4. **JAMAIS inventer** de nouvelles approches si V2 a une solution
+5. **AMÉLIORATIONS UNIQUEMENT** : IA pour texte complexe + analyse audio
+6. **PRIVILÉGIER la réutilisation** de fonctions existantes au lieu de créer nouvelles
+7. **VÉRIFIER SYSTÉMATIQUEMENT** si même fonctionnalité existe dans V2 → si OUI, faire exactement pareil
+
+**🔧 WORKFLOWS IDENTIQUES V2/V3 :**
+- Multi-provider (Green API/Twilio) - **même logique exacte**
+- Sessions et états - **même structure**
+- GPS et confirmations - **même réponses**
+- Calcul prix et conducteurs - **même algorithmes**
+- Réservations planifiées - **même fonctionnalités**
+
+**🚨 MÉTHODOLOGIE ANTI-RÉGRESSION :**
+1. **AVANT toute modification** → Lire `PLAN_FINAL_WORKFLOWS_DETAILLES.md`
+2. **IDENTIFIER** tous les workflows impactés par la modification
+3. **CHERCHER** dans V2 si fonctionnalité similaire existe déjà
+4. **RÉUTILISER** la fonction V2 existante (ne pas réinventer)
+5. **TESTER** impact sur workflows parallèles
+6. **VALIDER** que tous les cas d'usage continuent de fonctionner
+
+**🤖 AJOUTS V3 UNIQUEMENT :**
+- Module `text-intelligence.ts` (analyse GPT-4)
+- États IA (ia_attente_confirmation, ia_attente_gps, etc.)
+- Analyse audio (futur développement)
+- **EXCEPTION CRITIQUE** : Multi-provider pour workflows IA (V2 était cassé avec Green API)
+
+**🚨 EXCEPTION AUTORISÉE - CORRECTION BUG V2 :**
+```typescript
+// V2 (CASSÉ avec Green API) :
+return new Response(iaResult.response, { headers: { 'Content-Type': 'text/plain' } });
+
+// V3 (CORRIGÉ) :
+if (WHATSAPP_PROVIDER === 'greenapi') {
+  const messageSent = await sendGreenAPIMessage(from, iaResult.response);
+  return new Response('OK', { status: 200, headers: corsHeaders });
+} else {
+  return new Response(iaResult.response, { headers: { 'Content-Type': 'text/plain' } });
+}
+```
+**Raison exception** : V2 ne fonctionnait pas avec Green API pour l'IA (bug silencieux)
+
+**📋 EXEMPLE CONCRET (LEÇON APPRISE) :**
+```typescript
+// ❌ INTERDIT - Nouvelle fonction
+await searchLocationGeneric(query, options);
+
+// ✅ OBLIGATOIRE - Fonction V2 existante
+await searchLocation(query, SUPABASE_URL, workingApiKey);
+```
+
+**🎯 GAIN DE TEMPS :**
+- Utiliser les bonnes fonctions V2 = **0 problème**
+- Créer de nouvelles fonctions = **1H de debug inutile**
+
+### **📝 RÈGLE DE TRAÇABILITÉ V2 → V3**
+
+**⚠️ OBLIGATOIRE : Toute modification sur bot V2 doit être :**
+1. **TRACÉE** dans le fichier `CORRECTIONS_V2_TO_V3_LOG.md`
+2. **DOCUMENTÉE** avec le numéro de correction, date, problème, cause et solution
+3. **TESTÉE** sur V2 avant toute synchronisation
+
+**🔄 SYNCHRONISATION V2 → V3 :**
+- **Synchronisation UNIQUEMENT sur demande explicite** de l'utilisateur
+- **Commande attendue** : "synchro vers v3" ou équivalent
+- **Ne JAMAIS synchroniser automatiquement** sans demande
+- **Toujours vérifier** que V2 fonctionne avant de synchroniser
+
+**📋 FORMAT DE TRAÇABILITÉ :**
+```markdown
+## ✅ CORRECTION #X - DATE HEURE
+**🐛 PROBLÈME :** [Description du bug]
+**📍 CAUSE :** [Analyse technique]
+**🔧 SOLUTION :** [Correction appliquée]
+### 📝 MODIFICATIONS EXACTES :
+[Code avant/après]
+### 🎯 À APPLIQUER SUR V3 :
+- [ ] Actions spécifiques pour V3
+```
 
 ### **📋 BACKUP AVANT CHAQUE MODIFICATION DU BOT**
 
@@ -86,6 +197,71 @@ Avant d'implémenter une nouvelle fonctionnalité :
 
 ---
 
+## 🐛 **MÉTHODOLOGIE CORRECTION DE BUGS**
+
+**📋 PROCESSUS OBLIGATOIRE AVANT TOUTE CORRECTION :**
+
+### **🔍 ÉTAPE 1 - ANALYSE PRÉALABLE**
+**Avant de corriger un bug, TOUJOURS vérifier :**
+
+1. **RECHERCHER** si ce correctif existe déjà quelque part dans le code
+2. **ANALYSER** comment le problème similaire a été résolu ailleurs
+3. **IDENTIFIER** les patterns et logiques déjà implémentés
+4. **VÉRIFIER** que le workflow fonctionne correctement dans d'autres contextes
+
+### **🔧 ÉTAPE 2 - APPLICATION DU CORRECTIF**
+**Si un correctif similaire existe :**
+
+1. **COPIER EXACTEMENT** la même logique
+2. **ADAPTER** seulement les noms de variables/paramètres nécessaires
+3. **CONSERVER** le bon fonctionnement des workflows existants
+4. **ÉVITER** de créer de nouvelles fonctions si des existantes font déjà le travail
+
+### **🎯 ÉTAPE 3 - VALIDATION**
+**Après correction :**
+
+1. **TESTER** que le bug original est résolu
+2. **VÉRIFIER** qu'aucun workflow existant n'est cassé
+3. **CONFIRMER** que la logique suit les mêmes principes que l'existant
+4. **DOCUMENTER** le correctif dans le log des corrections
+
+### **💡 EXEMPLES CONCRETS :**
+
+**❌ MAUVAISE APPROCHE :**
+```typescript
+// Créer une nouvelle fonction pour gérer les tableaux
+function handleArrayResults(results) { ... }
+```
+
+**✅ BONNE APPROCHE :**
+```typescript
+// Réutiliser la logique existante (ligne 2392-2393)
+const result = Array.isArray(results) ? results[0] : results;
+```
+
+**❌ MAUVAISE APPROCHE :**
+```typescript
+// Créer de nouveaux états
+etat: 'nouveau_choix_multiple_special'
+```
+
+**✅ BONNE APPROCHE :**
+```typescript
+// Réutiliser les états existants
+etat: 'choix_depart_multiple'  // ✅ État EXISTANT
+```
+
+### **🚨 RÈGLES CRITIQUES :**
+
+1. **NE JAMAIS** créer de nouvelle fonction si une existante fait le même travail
+2. **NE JAMAIS** créer de nouvel état si un existant peut être réutilisé
+3. **TOUJOURS** chercher d'abord dans le code comment c'est déjà géré
+4. **TOUJOURS** préserver les workflows qui fonctionnent déjà
+
+**🎯 Cette méthodologie évite la sur-complexification et maintient la cohérence du code.**
+
+---
+
 ## 📍 **CONTEXTE DE TEST IMPORTANT**
 
 **L'utilisateur teste depuis PARIS, France - PAS depuis Conakry, Guinée**
@@ -96,6 +272,27 @@ Cela explique :
 - Les coordonnées de départ européennes
 
 **Ne pas considérer ces valeurs comme des bugs** - elles sont normales pour un test depuis Paris vers des destinations en Guinée.
+
+---
+
+## 📂 **BACKUP RÉFÉRENCE - BOT V2 AVANT ADRESSES PERSONNELLES**
+
+**📁 CHEMIN BACKUP CRITIQUE :**
+`C:\Users\diall\Documents\LABICOTAXI\Backup-Bot\whatsapp-bot-v2`
+
+**🎯 UTILISATION :**
+- **Backup de référence** avant modifications adresses personnelles
+- **Comparaison anti-régression** pour vérifier workflows existants
+- **Version de contrôle** pour restauration rapide si nécessaire
+- **Validation** que partage GPS, transfert position et saisie texte fonctionnent
+
+**⚠️ RÈGLE DE VÉRIFICATION :**
+En cas de doute sur une régression, **TOUJOURS comparer** avec cette version de référence pour s'assurer que :
+- ✅ Partage GPS position (départ/destination)  
+- ✅ Transfert position partagée d'un ami
+- ✅ Saisie d'adresse texte (départ/destination)
+
+**Ces 3 cas DOIVENT fonctionner identiquement à la version de référence.**
 
 ---
 
@@ -1089,6 +1286,77 @@ WHISPER_API_URL=https://api.openai.com/v1/audio/transcriptions
 
 ---
 
+## ⏰ **SYSTÈME NOTIFICATIONS RAPPEL RÉSERVATIONS PLANIFIÉES**
+
+**🎯 FONCTIONNALITÉ OPÉRATIONNELLE (2025-08-13)**
+
+**📋 PRINCIPE :**
+Double notification automatique aux conducteurs pour les réservations planifiées :
+- **4H avant** : Rappel normal "⏰ Rappel Course - 4H"
+- **3H avant** : Rappel urgent "🔔 COURSE URGENTE - 3H"
+
+**🔧 CRITÈRES DE SÉLECTION :**
+```sql
+WHERE statut = 'accepted'
+  AND conducteur_id IS NOT NULL
+  AND date_reservation IS NOT NULL  
+  AND heure_reservation IS NOT NULL
+  AND reminder_4h_sent_at IS NULL     -- Pour notification 4H
+  AND reminder_3h_sent_at IS NULL     -- Pour notification 3H (après 4H)
+```
+
+**📱 FORMAT NOTIFICATIONS :**
+
+**Notification 4H (normale) :**
+```
+Titre: "⏰ Rappel Course - 4H"
+🚗 MOTO - Départ dans 4H
+📍 Gare de Lieusaint → Hôpital Donka
+⏰ 13h15 • 💰 35 000 GNF
+📞 +33620951645
+```
+
+**Notification 3H (urgente) :**
+```
+Titre: "🔔 COURSE URGENTE - 3H"  
+🚨 MOTO - Départ dans 3H !
+📍 Gare de Lieusaint → Aéroport Conakry
+⏰ 12h16 • 💰 55 000 GNF
+📞 +33620951645
+```
+
+**🛠️ IMPLÉMENTATION TECHNIQUE :**
+
+**Fonction C# :** `ProcessScheduledReservationReminders()`
+**Emplacement :** `ASPNET_MVC_WHATSAPP_SERVICE.cs` (lignes 794-992)
+**Endpoint :** `/api/ProcessScheduledReservationReminders`
+
+**📊 COLONNES BASE DE DONNÉES AJOUTÉES :**
+```sql
+ALTER TABLE reservations 
+ADD COLUMN reminder_4h_sent_at TIMESTAMP WITH TIME ZONE,
+ADD COLUMN reminder_3h_sent_at TIMESTAMP WITH TIME ZONE;
+```
+
+**⚙️ PLANIFICATION RECOMMANDÉE :**
+- **Fréquence** : Toutes les 15 minutes
+- **Plage** : 24h/24, 7j/7
+- **Windows Task Scheduler** ou équivalent
+- **URL** : `http://localhost/api/ProcessScheduledReservationReminders`
+
+**🎯 FENÊTRE DE DÉTECTION :**
+- **4H** : ±15 minutes (3h45 à 4h15 avant réservation)
+- **3H** : ±15 minutes (2h45 à 3h15 avant réservation)
+
+**📡 INTÉGRATION ONESIGNAL :**
+- **External User IDs** : `conducteur_{conducteur_id}`
+- **Channel** : Configuration `onesignalChannelId` (avec claxon)
+- **Anti-doublon** : Via colonnes `reminder_*_sent_at`
+
+**✅ STATUT :** 100% opérationnel et testé avec succès
+
+---
+
 ## 🔍 **RÈGLE CRITIQUE - RECHERCHE D'ADRESSES GOOGLE PLACES UNIQUEMENT**
 
 **⚠️ IMPORTANT - RÈGLE TEMPORAIRE EN VIGUEUR**
@@ -1120,3 +1388,78 @@ const DEFAULT_BOT_CONFIG: SearchConfig = {
 **📅 STATUT :** Temporaire - À réviser après nettoyage base de données
 
 **⚠️ Cette règle remplace temporairement toute autre logique de recherche d'adresses.**
+
+---
+
+## 🎯 **RÈGLE ENRICHISSEMENT IA - PROMPT GPT-4 SEULEMENT**
+
+**✅ APPROCHE VALIDÉE (2025-08-16)**
+
+**🚨 INTERDICTION ABSOLUE :**
+- **JAMAIS modifier** `IA_CONFIDENCE_THRESHOLD = 0.7`
+- **JAMAIS changer** les seuils de confidence dans le code
+- **JAMAIS toucher** aux constantes de seuil
+
+**✅ SEULE MODIFICATION AUTORISÉE :**
+- **ENRICHIR le prompt GPT-4** dans `text-intelligence.ts`
+- **OPTIMISER les instructions** pour meilleures confidence
+- **AJOUTER des exemples** spécifiques au prompt
+
+**🎯 OBJECTIF :**
+Que GPT-4 donne automatiquement confidence ≥ 0.8 pour les vrais cas de transport, sans modifier le seuil.
+
+**📋 MÉTHODE :**
+```typescript
+// ✅ AUTORISÉ : Enrichir le prompt
+const COMPLEX_TEXT_ANALYSIS_PROMPT = `
+// Ajouter plus d'exemples et d'instructions précises
+`;
+
+// ❌ INTERDIT : Modifier les seuils
+const IA_CONFIDENCE_THRESHOLD = 0.7; // NE JAMAIS CHANGER
+```
+
+**🔧 RAISON :**
+Stabilité du système et approche propre de résolution des problèmes à la source.
+
+---
+
+## ⚠️ **RÈGLE CRITIQUE - DÉPLOIEMENT C#**
+
+**À CHAQUE MODIFICATION DE CODE C#, TOUJOURS PRÉCISER :**
+
+### **📋 INFORMATIONS OBLIGATOIRES :**
+1. **📁 Fichiers modifiés** (liste exhaustive)
+2. **🔧 Fonctions/méthodes impactées** (noms exacts)
+3. **🌐 Endpoints/APIs à redéployer** (URLs complètes)
+4. **🚀 Commandes de déploiement** (instructions exactes)
+5. **🧪 Tests post-déploiement** (URLs de validation)
+
+### **📋 FORMAT OBLIGATOIRE :**
+```
+## 🚀 **DÉPLOIEMENT REQUIS**
+
+**📁 Fichiers modifiés :**
+- `NomFichier.cs` : Fonction `NomFonction()` ligne XX
+
+**🌐 Endpoints impactés :**
+- `http://localhost/api/NomEndpoint`
+
+**🔧 Déploiement :**
+```bash
+msbuild YourProject.sln /p:Configuration=Release
+```
+
+**🧪 Tester après déploiement :**
+- URL : `http://localhost/api/Test`
+```
+
+### **❌ INTERDIT :**
+- Modifier du C# sans donner les infos de déploiement
+- Oublier de mentionner les endpoints impactés
+- Ne pas préciser les commandes de build/redémarrage
+
+### **✅ OBJECTIF :**
+Éviter que l'utilisateur oublie de déployer et se retrouve avec du code non fonctionnel.
+
+**Cette règle s'applique à TOUTES les modifications C# - aucune exception !**

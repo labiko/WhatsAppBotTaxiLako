@@ -2,6 +2,91 @@
 
 ## 🚨 **RÈGLES CRITIQUES - DÉVELOPPEMENT ET SYNCHRONISATION**
 
+### **🔒 RÈGLE FONDAMENTALE - MODIFICATIONS MINIMALES UNIQUEMENT**
+
+**💡 Message renforcé pour Claude Code :**
+
+**⚠️ À chaque fois que je demande une modification, il est indispensable que tu limites tes changements strictement à ce qui est demandé.**
+
+**🎯 PRINCIPE ABSOLU :**
+- **Tu ajoutes uniquement** ce qui est explicitement demandé
+- **Tu suis exactement** la même logique déjà implémentée pour les autres états similaires
+- **Tu ne crées pas** de nouvelles méthodes, fonctions ou classes
+- **Tu ne réécris pas** le comportement existant en dehors de l'ajout demandé
+- **Tu évites absolument** toute régression dans le code actuel
+
+**🔒 RÈGLE DE STABILITÉ :**
+Le code déjà en place est considéré comme **stable et fonctionnel**. Tu ne touches pas à son fonctionnement. Tu ne fais qu'**étendre la logique existante** en suivant les patterns déjà établis.
+
+**✅ CE QUE TU DOIS FAIRE :**
+- Ajouter uniquement l'élément demandé (nouvel état, nouvelle condition, etc.)
+- Conserver la structure et la logique déjà présentes
+- Suivre exactement les mêmes patterns que le code existant
+- Intégrer harmonieusement dans le flux existant
+
+**❌ CE QUE TU NE DOIS JAMAIS FAIRE :**
+- Réécrire des morceaux de logique déjà implémentés
+- Refactoriser le code sans demande explicite
+- Ajouter de nouvelles fonctions, méthodes ou propriétés non demandées
+- Modifier le comportement existant qui fonctionne
+- Créer de nouveaux patterns ou architectures
+
+**🎯 OBJECTIF FINAL :**
+Produire un code **minimaliste**, **ciblé** et **sans régression**, qui se contente d'intégrer l'élément demandé dans le flux existant en respectant parfaitement les conventions déjà établies.
+
+**📋 VALIDATION OBLIGATOIRE :**
+Avant chaque modification, vérifier que :
+- ✅ Seul l'élément demandé est ajouté
+- ✅ La logique existante reste inchangée  
+- ✅ Les patterns existants sont respectés
+- ✅ Aucune régression n'est introduite
+
+### **🔐 RÈGLE ABSOLUE - SÉCURITÉ API KEYS**
+
+**⚠️ INTERDICTION FORMELLE DE COMMITTER LES CLÉS API :**
+- **JAMAIS committer** les clés OpenAI dans le code source
+- **JAMAIS inclure** les clés API dans les fichiers TypeScript/JavaScript
+- **TOUJOURS utiliser** `supabase secrets set` pour configurer les clés
+- **TOUJOURS vérifier** que `.gitignore` protège les fichiers de clés
+
+**✅ PROCÉDURE OBLIGATOIRE POUR LES CLÉS API :**
+1. **UTILISER** uniquement `supabase secrets set OPENAI_API_KEY=sk-...`
+2. **ACCÉDER** aux clés via `Deno.env.get('OPENAI_API_KEY')`
+3. **VÉRIFIER** que `.gitignore` contient `*openai*.key` et `*.secret`
+4. **NE JAMAIS** écrire de clé directement dans le code
+
+**🚨 EXEMPLE INTERDIT :**
+```typescript
+const OPENAI_API_KEY = 'sk-proj-FSpmOigwQeSfSNeH4a1IDP2L...'; // ❌ JAMAIS !
+```
+
+**✅ EXEMPLE AUTORISÉ :**
+```typescript
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || ''; // ✅ Correct
+```
+
+### **🚨 RÈGLE ABSOLUE - ANALYSE STRUCTURE DB OBLIGATOIRE**
+
+**⚠️ PROCÉDURE OBLIGATOIRE POUR TOUS LES SCRIPTS SQL :**
+- **TOUJOURS analyser** `C:\Users\diall\Documents\LABICOTAXI\SCRIPT\db_structure.sql` avant écriture SQL
+- **JAMAIS supposer** la structure des tables - **TOUJOURS vérifier les colonnes exactes**
+- **VÉRIFIER** les types de données, contraintes et colonnes existantes
+- **ÉVITER** les erreurs de colonnes inexistantes (ex: `accepted_at` n'existe pas dans `reservations`)
+
+**✅ EXEMPLE - RÉSERVATION ACCEPTÉE :**
+```sql
+-- ✅ CORRECT (basé sur structure réelle)
+UPDATE reservations 
+SET 
+  statut = 'accepted',
+  conducteur_id = 'uuid-conducteur',
+  updated_at = NOW()
+WHERE id = 'uuid-reservation';
+
+-- ❌ INCORRECT (colonne inexistante)
+UPDATE reservations SET accepted_at = NOW(); -- accepted_at n'existe pas !
+```
+
 ### **🚨 RÈGLE ABSOLUE - RÉUTILISATION DES FONCTIONS V2**
 
 **⚠️ INTERDICTION FORMELLE :**
@@ -29,6 +114,104 @@
 - **Chaque modification** doit tenir compte de TOUS les autres workflows
 - **INTERDICTION absolue** de créer des régressions dans workflows existants
 - **TOUJOURS vérifier** l'impact sur workflows parallèles avant toute modification
+
+### **🔒 RÈGLE ANTI-ÉCRASEMENT - ÉVOLUTIONS V3**
+
+**⚠️ INTERDICTION ABSOLUE :**
+- **JAMAIS modifier directement** le code principal V3
+- **JAMAIS ajouter** de logique IA dans le workflow principal V3
+- **Toute évolution V3** sera **écrasée** lors synchro V2→V3
+
+**✅ ARCHITECTURE ANTI-ÉCRASEMENT OBLIGATOIRE :**
+
+1. **SEULES MODIFICATIONS AUTORISÉES DANS V2 :**
+   - Toute fonction nécessaire à V3 **DOIT être ajoutée en V2 d'abord**
+   - V2 = Version "master" qui ne sera jamais écrasée
+   - V3 hérite automatiquement des évolutions V2
+
+2. **ÉVOLUTIONS IA UNIQUEMENT DANS MODULES SÉPARÉS :**
+   - `text-intelligence.ts` → **Module IA pur** (pas touché par synchro)
+   - `text-intelligence-rules.ts` → **Règles IA** (pas touché par synchro)  
+   - **Interfaces et fonctions IA** → Modules séparés uniquement
+
+3. **INTÉGRATION IA VIA POINTS D'ANCRAGE FIXES :**
+   - Points d'intégration définis dans V2
+   - V3 utilise les mêmes points + modules IA
+   - Aucune modification du workflow principal V3
+
+**🛡️ SYSTÈME DE PROTECTION ANTI-ÉCRASEMENT - IMPLÉMENTÉ :**
+
+**✅ V2 RESTE INTOUCHABLE** (stable en production)
+**✅ SYNCHRONISATION AUTOMATISÉE INTELLIGENTE** avec garanties techniques
+
+## **🤖 OUTILS DE SYNCHRONISATION SÉCURISÉE :**
+
+### **1. Script Synchronisation Intelligente :**
+```bash
+node sync-v2-to-v3-safe.js
+```
+**Fonctionnalités :**
+- ✅ Détection automatique des zones protégées
+- ✅ Backup automatique horodaté avant synchro
+- ✅ Préservation garantie des évolutions IA
+- ✅ Réinjection sélective du code V2
+
+### **2. Script Validation d'Intégrité :**
+```bash
+node validate-v3-integrity.js
+```
+**Vérifications automatiques :**
+- ✅ Présence des éléments IA critiques
+- ✅ Zones protégées correctement marquées  
+- ✅ Structure V3 préservée
+- ✅ Rapport détaillé avec alertes
+
+### **3. Procédure Complète Documentée :**
+**Fichier :** `PROCEDURE_SYNCHRO_SECURISEE.md`
+- ✅ Guide étape par étape
+- ✅ Mesures de sécurité intégrées
+- ✅ Récupération en cas de problème
+
+**🎯 ZONES PROTÉGÉES MARQUÉES DANS V3 :**
+```typescript
+// ═══════════════════════════════════════════════════════════════
+// 🛡️ ZONE IA V3 - NE PAS ÉCRASER LORS SYNCHRO V2→V3
+// ═══════════════════════════════════════════════════════════════
+// 🤖 INTÉGRATION INTELLIGENCE ARTIFICIELLE - PHASE 1
+import { shouldUseAIAnalysis, handleComplexTextMessage } from './text-intelligence.ts';
+// 🧠 CONFIGURATION IA AVANCÉE V3
+const IA_CONFIDENCE_THRESHOLD = 0.7;
+// ═══════════════════════════════════════════════════════════════
+// 🛡️ FIN ZONE IA V3 - PROTÉGÉE CONTRE ÉCRASEMENT
+// ═══════════════════════════════════════════════════════════════
+```
+
+## **🔒 GARANTIES TECHNIQUES FOURNIES :**
+
+**✅ GARANTIE PROCESSUS :**
+- **Scripts automatisés** qui préservent les zones IA
+- **Validation systématique** avant et après synchro
+- **Backups de sécurité** pour récupération immédiate
+
+**✅ GARANTIE STRUCTURELLE :**
+- **Marquage visuel** des zones critiques
+- **Détection automatique** des éléments IA
+- **Alerte immédiate** si écrasement détecté
+
+**✅ GARANTIE DE RÉCUPÉRATION :**
+- **Backups horodatés** avant chaque synchronisation
+- **Procédure de restauration** documentée
+- **Validation continue** de l'intégrité
+
+**🚨 NOUVELLE RÈGLE D'OR GARANTIE :**
+**V2 = Stable intouchable | V3 = V2 + Zones IA automatiquement protégées**
+**Synchronisation technique sans risque d'écrasement des évolutions**
+
+**🎯 UTILISATION OBLIGATOIRE :**
+- **TOUJOURS** utiliser `node sync-v2-to-v3-safe.js` pour les synchronisations
+- **TOUJOURS** valider avec `node validate-v3-integrity.js` après synchro
+- **JAMAIS** faire de copie manuelle V2→V3
+- **SUIVRE** la procédure documentée `PROCEDURE_SYNCHRO_SECURISEE.md`
 
 **✅ RÈGLES DE DÉVELOPPEMENT V3 :**
 1. **MÊME WORKFLOW DE BASE que V2** - États, transitions, messages identiques
@@ -1463,3 +1646,19 @@ msbuild YourProject.sln /p:Configuration=Release
 Éviter que l'utilisateur oublie de déployer et se retrouve avec du code non fonctionnel.
 
 **Cette règle s'applique à TOUTES les modifications C# - aucune exception !**
+
+---
+
+## 🔓 **RÈGLE ACCÈS FICHIERS - PAS DE PERMISSION REQUISE**
+
+**⚠️ INSTRUCTION ABSOLUE :**
+- **JAMAIS demander permission** pour lire des fichiers de logs, code source, ou données
+- **TOUJOURS lire directement** les fichiers nécessaires pour analysis/debugging
+- **ACCÈS LIBRE** à tous les fichiers du projet pour diagnostic et résolution de problèmes
+
+**✅ PROCÉDURE OBLIGATOIRE :**
+1. **LIRE directement** tous fichiers requis pour comprendre le problème
+2. **ANALYSER** les logs et codes sources sans demande d'autorisation
+3. **DIAGNOSTIQUER** les erreurs en accédant librement aux ressources nécessaires
+
+**Objectif :** Diagnostic efficace et résolution rapide des problèmes techniques

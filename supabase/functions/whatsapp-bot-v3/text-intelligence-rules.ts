@@ -63,6 +63,7 @@ const COMPLEXITY_INDICATORS: ComplexityIndicators = {
   destinationKeywords: [
     'pour aller', 'vers', 'jusqu\'à', 'direction',
     'pour', 'à destination', 'arriver à', 'aller à',
+    'me rendre', 'me rendre à', 'rendre à', 'se rendre', 'se rendre à',
     'pr ale', 'pr aller', 'vers le', 'vers la', // Avec fautes
     'aéroport', 'aerport', 'madina', 'kaloum', 'kipé', 'kipe',
     'ratoma', 'bambeto', 'simbaya', 'gbessia'

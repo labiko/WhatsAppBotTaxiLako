@@ -542,12 +542,17 @@ $"{supabaseUrl}/rest/v1/reservations?statut=in.(pending,scheduled)&notified_at=i
                             var message = $"{reservation.depart_nom} -> {reservation.destination_nom}";
 
                             // 3. Envoyer notification OneSignal
+                            logMessages.Add($"[DEBUG] Appel SendCancellationNotificationToConducteur");
+                            logMessages.Add($"[DEBUG] External User ID: conducteur_{reservation.conducteur_id}");
+                            
                             var success = SendCancellationNotificationToConducteur(
                                 reservation.conducteur_id.ToString(),
                                 message,
                                 reservation.id.ToString()
                             );
 
+                            logMessages.Add($"[DEBUG] Resultat notification: {success}");
+                            
                             if (success)
                             {
                                 logMessages.Add($"Notification annulation envoyee au conducteur");
@@ -641,6 +646,24 @@ $"{supabaseUrl}/rest/v1/reservations?statut=in.(pending,scheduled)&notified_at=i
 
             try
             {
+                // DEBUG LOGS DETAILLES
+                Console.WriteLine("===== DEBUT SendCancellationNotificationToConducteur =====");
+                Console.WriteLine($"[DEBUG] Conducteur ID recu: '{conducteurId}'");
+                Console.WriteLine($"[DEBUG] Message: '{message}'");
+                Console.WriteLine($"[DEBUG] Reservation ID: '{reservationId}'");
+                Console.WriteLine($"[DEBUG] External User ID genere: 'conducteur_{conducteurId}'");
+                
+                // Verification configuration
+                var appId = ConfigurationManager.AppSettings["onesignalAppId"];
+                var apiKey = ConfigurationManager.AppSettings["onesignalApiKey"];
+                var url = ConfigurationManager.AppSettings["onesignalUrl"];
+                var channelId = ConfigurationManager.AppSettings["onesignalChannelId"];
+                
+                Console.WriteLine($"[DEBUG] OneSignal App ID: {(string.IsNullOrEmpty(appId) ? "MANQUANT!" : appId.Substring(0, 8) + "...")}");
+                Console.WriteLine($"[DEBUG] OneSignal API Key: {(string.IsNullOrEmpty(apiKey) ? "MANQUANT!" : "Present")}");
+                Console.WriteLine($"[DEBUG] OneSignal URL: {url}");
+                Console.WriteLine($"[DEBUG] Channel ID: {channelId}");
+                
                 var request = WebRequest.Create(ConfigurationManager.AppSettings["onesignalUrl"]) as HttpWebRequest;
                 request.KeepAlive = true;
                 request.Method = "POST";
@@ -653,13 +676,13 @@ $"{supabaseUrl}/rest/v1/reservations?statut=in.(pending,scheduled)&notified_at=i
                     app_id = ConfigurationManager.AppSettings["onesignalAppId"],
                     contents = new
                     {
-                        en = message,
-                        fr = message
+                        en = FormatModernMessage(message, null),
+                        fr = FormatModernMessage(message, null)
                     },
                     headings = new
                     {
-                        en = "Course Annulee",
-                        fr = "Course Annulee"
+                        en = GetVehicleTitle(null),
+                        fr = GetVehicleTitle(null)
                     },
                     include_external_user_ids = new string[] { "conducteur_" + conducteurId },
                     priority = 10,
@@ -680,6 +703,11 @@ $"{supabaseUrl}/rest/v1/reservations?statut=in.(pending,scheduled)&notified_at=i
                 };
 
                 var param = serializer.Serialize(obj);
+                
+                // DEBUG: Afficher le JSON envoye
+                Console.WriteLine($"[DEBUG] JSON envoye a OneSignal:");
+                Console.WriteLine(param);
+                
                 byte[] byteArray = Encoding.UTF8.GetBytes(param);
 
                 using (var writer = request.GetRequestStream())
@@ -692,24 +720,56 @@ $"{supabaseUrl}/rest/v1/reservations?statut=in.(pending,scheduled)&notified_at=i
                     using (var reader = new StreamReader(response.GetResponseStream()))
                     {
                         var responseContent = reader.ReadToEnd();
+                        Console.WriteLine($"[DEBUG] OneSignal Response Status: {response.StatusCode}");
+                        Console.WriteLine($"[DEBUG] OneSignal Response Body: {responseContent}");
                         System.Diagnostics.Debug.WriteLine("OneSignal Cancellation Success: " + responseContent);
+                        
+                        // Parser la reponse pour voir les details
+                        try
+                        {
+                            var responseObj = JsonConvert.DeserializeObject<dynamic>(responseContent);
+                            Console.WriteLine($"[DEBUG] Recipients: {responseObj.recipients}");
+                            Console.WriteLine($"[DEBUG] ID Notification: {responseObj.id}");
+                            
+                            if (responseObj.errors != null)
+                            {
+                                Console.WriteLine($"[DEBUG] ERREURS OneSignal: {responseObj.errors}");
+                            }
+                        }
+                        catch (Exception parseEx)
+                        {
+                            Console.WriteLine($"[DEBUG] Impossible de parser la reponse: {parseEx.Message}");
+                        }
                     }
                 }
-
+                
+                Console.WriteLine("===== FIN SendCancellationNotificationToConducteur (SUCCESS) =====");
                 return true;
             }
             catch (WebException ex)
             {
+                Console.WriteLine($"[DEBUG] ERREUR WebException: {ex.Message}");
+                Console.WriteLine($"[DEBUG] Status: {ex.Status}");
                 System.Diagnostics.Debug.WriteLine("OneSignal Cancellation Error: " + ex.Message);
                 try
                 {
                     using (var reader = new StreamReader(ex.Response.GetResponseStream()))
                     {
                         string errorResponse = reader.ReadToEnd();
+                        Console.WriteLine($"[DEBUG] OneSignal Error Response: {errorResponse}");
                         System.Diagnostics.Debug.WriteLine("OneSignal Cancellation Error Response: " + errorResponse);
+                        
+                        // Parser l'erreur pour plus de details
+                        try
+                        {
+                            var errorObj = JsonConvert.DeserializeObject<dynamic>(errorResponse);
+                            Console.WriteLine($"[DEBUG] Error Details: {errorObj}");
+                        }
+                        catch { }
                     }
                 }
                 catch { }
+                Console.WriteLine("===== FIN SendCancellationNotificationToConducteur (ERREUR) =====");
                 return false;
             }
         }

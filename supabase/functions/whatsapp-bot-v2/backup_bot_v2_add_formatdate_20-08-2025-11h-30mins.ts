@@ -1,18 +1,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-
-// ═══════════════════════════════════════════════════════════════
-// 🛡️ ZONE IA V3 - NE PAS ÉCRASER LORS SYNCHRO V2→V3
-// ═══════════════════════════════════════════════════════════════
+// =================================================================
 // 🤖 INTÉGRATION INTELLIGENCE ARTIFICIELLE - PHASE 1
+// =================================================================
 import { shouldUseAIAnalysis, handleComplexTextMessage } from './text-intelligence.ts';
-
-// 🧠 CONFIGURATION IA AVANCÉE V3
-// Configuration IA globale
-const IA_CONFIDENCE_THRESHOLD = 0.7; // Seuil stable pour accepter les analyses IA
-// ═══════════════════════════════════════════════════════════════
-// 🛡️ FIN ZONE IA V3 - PROTÉGÉE CONTRE ÉCRASEMENT
-// ═══════════════════════════════════════════════════════════════
-
 // =================================================================
 // CONFIGURATION ET CONSTANTES
 // =================================================================
@@ -78,8 +68,6 @@ async function sendGreenAPIMessage(to, message) {
     console.log(`🌿 Green API Response:`, result.substring(0, 100));
     return response.ok;
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.log(`⏱️ [GREEN-API] SEND ERROR: ${duration}ms - ${error.message}`);
     console.error('❌ Erreur Green API:', error);
     return false;
   }
@@ -155,26 +143,10 @@ const normalizePhone = (phone)=>{
   return phone.replace(/^whatsapp:/, '').replace(/\s+/g, '').trim();
 };
 async function fetchWithRetry(url, options, maxRetries = 3) {
-  // ═══════════════════════════════════════════════════════════════
-  // 🛡️ ZONE IA V3 - NE PAS ÉCRASER LORS SYNCHRO V2→V3
-  // ═══════════════════════════════════════════════════════════════
-  // ⏱️ MONITORING PERFORMANCE SUPABASE
-  const startTime = Date.now();
-  const operationName = url.split('/').pop() || 'unknown';
-  console.log(`⏱️ [SUPABASE] START: ${operationName}`);
-  // ═══════════════════════════════════════════════════════════════
-  // 🛡️ FIN ZONE IA V3 - PROTÉGÉE CONTRE ÉCRASEMENT
-  // ═══════════════════════════════════════════════════════════════
-  
   for(let i = 0; i < maxRetries; i++){
     try {
       console.log(`🔄 Tentative ${i + 1}/${maxRetries}: ${url}`);
       const response = await fetch(url, options);
-      
-      // ⏱️ [TIMING] Mesure performance
-      const duration = Date.now() - startTime;
-      console.log(`⏱️ [SUPABASE] END: ${operationName} - ${duration}ms - Status: ${response.status}`);
-      
       if (response.status === 503) {
         console.log(`⏳ Service indisponible (503), retry dans ${(i + 1) * 1000}ms...`);
         if (i < maxRetries - 1) {
@@ -182,16 +154,8 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
           continue;
         }
       }
-      
-      // 🚨 Alerte si lent
-      if (duration > 1000) {
-        console.log(`🐌 [SUPABASE] SLOW ALERT: ${operationName} took ${duration}ms`);
-      }
-      
       return response;
     } catch (error) {
-      const duration = Date.now() - startTime;
-      console.log(`⏱️ [SUPABASE] ERROR: ${operationName} - ${duration}ms - ${error.message}`);
       console.log(`❌ Erreur tentative ${i + 1}: ${error.message}`);
       if (i === maxRetries - 1) throw error;
       await new Promise((resolve)=>setTimeout(resolve, (i + 1) * 1000));
@@ -294,9 +258,6 @@ async function saveSession(phone, data) {
       waiting_for_comment: data.waitingForComment || false,
       reservation_to_rate: data.reservationToRate || null,
       current_rating: data.currentRating || null,
-      // 🚫 SYSTÈME ANNULATION AVEC CONFIRMATION
-      reservation_to_cancel: data.reservationToCancel || null,
-      conducteur_to_notify: data.conducteurToNotify || null,
       updated_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() // 4 heures pour éviter problèmes timezone
     };
@@ -417,9 +378,6 @@ async function getSession(phone) {
           waitingForComment: session.waiting_for_comment,
           reservationToRate: session.reservation_to_rate,
           currentRating: session.current_rating,
-          // 🚫 SYSTÈME ANNULATION AVEC CONFIRMATION
-          reservationToCancel: session.reservation_to_cancel,
-          conducteurToNotify: session.conducteur_to_notify,
           timestamp: new Date(session.updated_at).getTime()
         };
         console.log(`🔍 DEBUG getSession - Session retournée:`, JSON.stringify(result));
@@ -918,16 +876,6 @@ async function searchAdressePartial(keyword) {
 }
 // CORRECTION 2: Fonction Google Places API en fallback
 async function searchGooglePlacesFallback(keyword) {
-  // ═══════════════════════════════════════════════════════════════
-  // 🛡️ ZONE IA V3 - NE PAS ÉCRASER LORS SYNCHRO V2→V3
-  // ═══════════════════════════════════════════════════════════════
-  // ⏱️ MONITORING PERFORMANCE GOOGLE PLACES API
-  const googleStartTime = Date.now();
-  console.log(`⏱️ [GOOGLE-API] SEARCH START: "${keyword}"`);
-  // ═══════════════════════════════════════════════════════════════
-  // 🛡️ FIN ZONE IA V3 - PROTÉGÉE CONTRE ÉCRASEMENT
-  // ═══════════════════════════════════════════════════════════════
-  
   try {
     if (!GOOGLE_PLACES_API_KEY) {
       console.log(`⚠️ Google Places API key non configurée`);
@@ -1389,34 +1337,6 @@ async function getSuggestionsIntelligentes(query = '', limit = 8) {
     return [];
   }
 }
-
-// =================================================================
-// 🧠 FONCTIONS IA AVANCÉES V3
-// =================================================================
-
-// Interfaces TypeScript pour l'IA
-interface IAResult {
-  handled: boolean;
-  response?: string;
-  session?: any;
-}
-
-/**
- * Fonction principale de gestion des messages complexes par IA - V3 UNIQUEMENT
- * Implémente les 10 cas du PLAN_FINAL_WORKFLOWS_DETAILLES.md
- */
-async function handleComplexTextMessageV3(body: string, from: string, session: any): Promise<IAResult> {
-  console.log(`🧠 [IA_COMPLEX_V3] Analyse du message: "${body}"`);
-  
-  try {
-    // Utiliser le module text-intelligence.ts de V3
-    return await handleComplexTextMessage(body, from, session);
-  } catch (error) {
-    console.error(`💥 [IA_COMPLEX_V3] Erreur: ${error.message}`);
-    return { handled: false };
-  }
-}
-
 async function getPopularDestinations() {
   // Réutiliser la fonction de suggestions pour récupérer des destinations populaires
   return await getSuggestionsIntelligentes('', 6);
@@ -2019,61 +1939,49 @@ Réessayez plus tard ou contactez le support.`;
     }
   // 🚫 HANDLER ANNULATION COMPLÈTE - Prioritaire sur tous les autres
   } else if (messageText.toLowerCase() === 'annuler') {
-    console.log(`🚫 DEMANDE ANNULATION - Demandée par: ${clientPhone}`);
-    
-    // 1. Chercher les réservations annulables
-    const getResponse = await fetchWithRetry(
-      `${SUPABASE_URL}/rest/v1/reservations?client_phone=eq.${encodeURIComponent(clientPhone)}&statut=in.(pending,accepted,scheduled)&select=id,destination_nom,vehicle_type,prix_total,date_reservation,heure_reservation,conducteur_id&order=created_at.desc`,
-      {
+    console.log(`🚫 ANNULATION TOTALE - Demandée par: ${clientPhone}`);
+    // 1. Annuler les réservations pending
+    const cancelResult = await cancelPendingReservations(clientPhone);
+    // 2. Nettoyer sessions
+    try {
+      await fetchWithRetry(`${SUPABASE_URL}/rest/v1/sessions?client_phone=eq.${encodeURIComponent(clientPhone)}`, {
+        method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${workingApiKey}`,
           'apikey': workingApiKey,
+          'Content-Type': 'application/json'
         }
-      }
-    );
-    
-    if (!getResponse.ok) {
-      responseMessage = `❌ Erreur technique. Réessayez plus tard.`;
-    } else {
-      const reservations = await getResponse.json();
-      
-      if (reservations.length === 0) {
-        responseMessage = `❌ Aucune réservation active à annuler.
-        
-Pour une nouvelle réservation: tapez 'taxi'`;
-      } else {
-        // Prendre la réservation la plus récente
-        const reservation = reservations[0];
-        
-        // Sauvegarder en session pour confirmation
-        await saveSession(clientPhone, {
-          ...session,
-          etat: 'confirmation_annulation',
-          reservationToCancel: reservation.id,
-          conducteurToNotify: reservation.conducteur_id
-        });
-        
-        // Construire le message de confirmation
-        let detailReservation = '';
-        if (reservation.date_reservation) {
-          detailReservation = `📅 Date: ${reservation.date_reservation} à ${reservation.heure_reservation}h`;
-        } else {
-          detailReservation = `⏰ Réservation immédiate`;
-        }
-        
-        responseMessage = `⚠️ **CONFIRMATION ANNULATION**
-
-📍 Destination: ${reservation.destination_nom || 'Non définie'}
-🚗 Type: ${reservation.vehicle_type?.toUpperCase() || 'TAXI'}
-💰 Prix: ${(reservation.prix_total || 0).toLocaleString('fr-FR')} GNF
-${detailReservation}
-${reservation.conducteur_id ? '👤 Conducteur assigné' : ''}
-
-Confirmez-vous l'annulation ?
-• Répondez 'oui' pour confirmer l'annulation
-• Répondez 'non' pour garder la réservation`;
-      }
+      });
+      console.log(`🧹 Sessions nettoyées pour ${clientPhone}`);
+    } catch (error) {
+      console.error('❌ Erreur suppression session:', error);
     }
+    // Mettre à jour réservations pending vers canceled
+    try {
+      const updateResponse = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?client_phone=eq.${encodeURIComponent(clientPhone)}&statut=eq.pending`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${workingApiKey}`,
+          'apikey': workingApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          statut: 'canceled',
+          updated_at: new Date().toISOString()
+        })
+      });
+      if (updateResponse.ok) {
+        console.log('✅ Réservations mises à jour vers canceled');
+      }
+    } catch (error) {
+      console.error('❌ Erreur mise à jour réservations:', error);
+    }
+    // 3. Message de confirmation personnalisé
+    responseMessage = `✅ **Annulation terminée !**
+
+${cancelResult.message}${cancelResult.message ? '\n' : ''}Toutes vos données ont été effacées.
+
+Pour une nouvelle réservation, tapez 'taxi' 🚕`;
   // 🔄 HANDLER NOUVEAU TAXI - Démarrage conversation
   } else if (messageText.includes('taxi')) {
     console.log(`🔄 NOUVEAU WORKFLOW TAXI - Commande détectée: "${messageText}"`);
@@ -2083,24 +1991,11 @@ Confirmez-vous l'annulation ?
       const aiResult = await handleComplexTextMessage(messageText, clientPhone, session);
       if (aiResult.handled) {
         console.log(`✅ [IA-INTEGRATION] IA a géré le message avec succès`);
-        console.log(`🔍 [IA-DEBUG] aiResult.response: "${aiResult.response}"`);
-        
-        // ═══════════════════════════════════════════════════════════════
-        // 🛡️ ZONE IA V3 - NE PAS ÉCRASER LORS SYNCHRO V2→V3
-        // ═══════════════════════════════════════════════════════════════
-        // 🔧 CORRECTION CRITIQUE - Multi-provider pour IA après "taxi"
-        if (WHATSAPP_PROVIDER === 'greenapi') {
-          const messageSent = await sendGreenAPIMessage(from, aiResult.response!);
-          logRequestTiming('IA SUCCESS (Green API)', `confidence: ${aiResult.confidence || 'N/A'}`);
-          return new Response('OK', { status: 200, headers: corsHeaders });
-        } else {
-          return new Response(aiResult.response, {
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-          });
-        }
-        // ═══════════════════════════════════════════════════════════════
-        // 🛡️ FIN ZONE IA V3 - PROTÉGÉE CONTRE ÉCRASEMENT
-        // ═══════════════════════════════════════════════════════════════
+        return new Response(aiResult.response, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8'
+          }
+        });
       }
       console.log(`🔄 [IA-INTEGRATION] IA n'a pas pu gérer, retour au workflow standard`);
     // Si l'IA ne peut pas gérer, continue avec le flow normal
@@ -2123,27 +2018,6 @@ Confirmez-vous l'annulation ?
       vehicleType: null,
       etat: 'initial'
     });
-    
-    // 🧠 INTÉGRATION IA V3 - Tentative analyse message complexe
-    if (await shouldUseAIAnalysis(body)) {
-      console.log(`🧠 [IA-INTEGRATION-V3] Message complexe détecté après 'taxi', tentative traitement IA...`);
-      const session = await getSession(clientPhone);
-      const aiResult = await handleComplexTextMessageV3(body, clientPhone, session);
-      
-      if (aiResult.handled) {
-        console.log(`🧠 [IA-INTEGRATION-V3] Message géré par l'IA, retour réponse`);
-        // L'IA a géré le message, retourner sa réponse
-        if (WHATSAPP_PROVIDER === 'greenapi') {
-          const messageSent = await sendGreenAPIMessage(from, aiResult.response!);
-          logRequestTiming('IA SUCCESS (Green API)', `confidence: ${aiResult.confidence || 'N/A'}`);
-          return new Response('OK', { status: 200, headers: corsHeaders });
-        } else {
-          return new Response(aiResult.response, { headers: { 'Content-Type': 'text/plain' } });
-        }
-      }
-      console.log(`🧠 [IA-INTEGRATION-V3] IA n'a pas pu traiter, fallback vers workflow standard`);
-    }
-    
     responseMessage = `🚕 Bienvenue chez LokoTaxi!
 
 Quel type de taxi souhaitez-vous ?
@@ -2268,298 +2142,6 @@ Cette réservation est-elle pour vous ?
 • "oui" → Partager votre position GPS
 • "non" → Réservation pour quelqu'un d'autre`;
     }
-
-  } else if (session.etat === 'ia_attente_gps' && hasLocation) {
-    // 🧠 HANDLER IA - État ia_attente_gps, GPS reçu (réservation immediate ou planifiée)
-    console.log(`🧠 [IA_GPS] État ia_attente_gps, GPS reçu: lat=${latitude}, lon=${longitude}`);
-    
-    const clientCoords = { lat: parseFloat(latitude!), lon: parseFloat(longitude!) };
-    
-    // Rechercher la destination avec searchLocation 
-    console.log(`🔍 [IA_GPS] Recherche destination IA: "${session.destinationNom}"`);
-    const destinations = await searchLocation(session.destinationNom!, SUPABASE_URL, workingApiKey);
-    
-    if (destinations && destinations.length > 0) {
-      const destination = destinations[0];
-      const destCoords = { lat: destination.latitude, lon: destination.longitude };
-      const distance = calculateDistance(clientCoords, destCoords);
-      const prix = calculerPrix(distance, session.vehicleType);
-      
-      // Sauvegarder les données complètes
-      await saveSession(clientPhone, {
-        ...session,
-        positionClient: `POINT(${longitude} ${latitude})`,
-        destinationId: destination.id,
-        destinationPosition: `POINT(${destination.longitude} ${destination.latitude})`,
-        distanceKm: distance,
-        prixEstime: prix,
-        etat: session.temporalPlanning ? 'prix_estime_planifie' : 'prix_estime'
-      });
-      
-      if (session.temporalPlanning && session.plannedDate && session.plannedHour !== null) {
-        // Réservation planifiée
-        const dateStr = formatDateForDisplay(session.plannedDate);
-        const heureStr = `${session.plannedHour}:${(session.plannedMinute || 0).toString().padStart(2, '0')}`;
-        
-        responseMessage = `✅ **RÉSERVATION PLANIFIÉE**
-━━━━━━━━━━━━━━━━━━━━━
-
-📅 **${dateStr}** à **${heureStr}**
-🚗 **${session.vehicleType?.toUpperCase()}**
-📍 **${session.destinationNom}**
-📏 **${distance.toFixed(1)} km**
-💰 **${prix.toLocaleString('fr-FR')} GNF**
-
-💬 Répondez "**OUI**" pour confirmer cette réservation planifiée.`;
-
-      } else {
-        // Réservation immédiate standard
-        responseMessage = `💰 **PRIX ESTIMÉ**
-━━━━━━━━━━━━━━━━━━━━━
-
-🚗 **${session.vehicleType?.toUpperCase()}** 
-📍 **${session.destinationNom}**
-📏 **${distance.toFixed(1)} km**
-💰 **${prix.toLocaleString('fr-FR')} GNF**
-
-💬 Répondez "**OUI**" pour commander votre ${session.vehicleType}.`;
-      }
-    } else {
-      // Destination non trouvée → Retour au search manuel
-      console.log(`❌ [IA_GPS] Destination non trouvée: "${session.destinationNom}"`);
-      await saveSession(clientPhone, {
-        ...session,
-        positionClient: `POINT(${longitude} ${latitude})`,
-        etat: 'position_recue'
-      });
-      
-      responseMessage = `📍 Position reçue! 
-
-🤔 Désolé, je n'ai pas trouvé "${session.destinationNom}" dans notre base. 
-
-🔍 **Quelle est votre destination ?**
-• Tapez le nom du lieu où vous voulez aller
-• Ou tapez "près" pour voir les destinations proches`;
-    }
-
-  } else if (session.etat === 'ia_attente_heure' && !hasLocation) {
-    // 🧠 HANDLER IA - État ia_attente_heure pour réservation planifiée
-    console.log(`🧠 [IA_HEURE] État ia_attente_heure, message reçu: "${messageText}"`);
-    
-    const heureMatch = messageText.match(/(\d{1,2})(?:h|:)?(\d{0,2})?/);
-    if (heureMatch) {
-      const heure = parseInt(heureMatch[1]);
-      const minutes = heureMatch[2] ? parseInt(heureMatch[2]) : 0;
-      
-      if (heure >= 6 && heure <= 23 && minutes >= 0 && minutes <= 59) {
-        // Heure valide
-        await saveSession(clientPhone, {
-          ...session,
-          plannedHour: heure,
-          plannedMinute: minutes,
-          etat: 'ia_attente_gps'
-        });
-        
-        const heureStr = `${heure}:${minutes.toString().padStart(2, '0')}`;
-        const dateStr = formatDateForDisplay(session.plannedDate!);
-        
-        responseMessage = `⏰ **HEURE CONFIRMÉE**
-━━━━━━━━━━━━━━━━━━━━━
-
-📅 ${dateStr} à **${heureStr}**
-📍 Destination: ${session.destinationNom}
-
-📍 **PARTAGEZ VOTRE POSITION**
-• 📱 Cliquer sur l'icône trombone (📎)
-• 📍 Sélectionner "Localisation"  
-• 🎯 Confirmer le partage`;
-      } else {
-        responseMessage = `❌ Heure invalide. Les taxis sont disponibles de 6h à 23h.
-        
-⏰ Tapez une heure valide (ex: 8h, 12h30, 19h)`;
-      }
-    } else {
-      responseMessage = `❌ Format d'heure non reconnu.
-
-⏰ **Tapez l'heure souhaitée:**
-• Format: 8h, 12h30, 19h  
-• Horaires: 6h à 23h
-
-📝 Exemples: "8h", "12h30", "19h"`;
-    }
-
-  } else if (session.etat === 'ia_attente_confirmation_report' && !hasLocation) {
-    // 🧠 HANDLER IA - Gestion report automatique heure passée  
-    console.log(`🧠 [IA_REPORT] État ia_attente_confirmation_report, message: "${messageText}"`);
-    
-    if (messageText.toLowerCase() === 'oui') {
-      // Confirmer le report à demain
-      await saveSession(clientPhone, {
-        ...session,
-        etat: 'ia_attente_gps'
-      });
-      
-      responseMessage = `✅ **REPORT CONFIRMÉ**
-━━━━━━━━━━━━━━━━━━━━━
-
-📅 Nouvelle réservation: ${formatDateForDisplay(session.plannedDate!)} à ${session.plannedHour}:${(session.plannedMinute || 0).toString().padStart(2, '0')}
-📍 Destination: ${session.destinationNom}
-
-📍 **PARTAGEZ VOTRE POSITION**
-• 📱 Cliquer sur l'icône trombone (📎)
-• 📍 Sélectionner "Localisation"
-• 🎯 Confirmer le partage`;
-      
-    } else if (messageText.toLowerCase() === 'autre') {
-      // Changer l'heure
-      await saveSession(clientPhone, {
-        ...session,
-        etat: 'ia_attente_heure'
-      });
-      
-      responseMessage = `⏰ **NOUVELLE HEURE**
-━━━━━━━━━━━━━━━━━━━━━
-
-📅 Date: ${formatDateForDisplay(session.plannedDate!)}
-📍 Destination: ${session.destinationNom}
-
-⏰ **QUELLE HEURE SOUHAITEZ-VOUS ?**
-
-🌅 Suggestions:
-• 7h00 - Très tôt, peu de trafic
-• 8h00 - Début journée standard
-• 12h00 - Pause déjeuner
-• 17h00 - Fin d'après-midi
-
-💬 Tapez l'heure souhaitée (ex: 7h30, 8h)`;
-      
-    } else {
-      responseMessage = `❌ Réponse non comprise.
-
-✅ Tapez "OUI" → Confirmer pour demain même heure
-🔄 Tapez "AUTRE" → Changer l'heure`;
-    }
-
-  } else if (session.etat === 'ia_attente_gps_pour_lieux' && hasLocation) {
-    // 🧠 HANDLER IA - GPS pour recherche de lieux proches (destination non reconnue initialement)
-    console.log(`🧠 [IA_GPS_LIEUX] État ia_attente_gps_pour_lieux, GPS reçu: lat=${latitude}, lon=${longitude}`);
-    
-    // Rechercher les lieux proches de cette position
-    const suggestions = await getNearbyPlaces(parseFloat(latitude!), parseFloat(longitude!));
-    
-    if (suggestions.length > 0) {
-      await saveSession(clientPhone, {
-        ...session,
-        positionClient: `POINT(${longitude} ${latitude})`,
-        suggestionsDestination: JSON.stringify(suggestions.slice(0, 5)),
-        etat: 'choix_destination_multiple'
-      });
-      
-      let message = `📍 **LIEUX PROCHES DE VOTRE POSITION**\n━━━━━━━━━━━━━━━━━━━━━\n\n`;
-      
-      suggestions.slice(0, 5).forEach((place, index) => {
-        const distance = calculateDistance(
-          { lat: parseFloat(latitude!), lon: parseFloat(longitude!) },
-          { lat: place.latitude, lon: place.longitude }
-        );
-        message += `${index + 1}️⃣ **${place.nom}**\n📏 ${distance.toFixed(1)}km\n\n`;
-      });
-      
-      message += `💬 **Tapez le numéro** de votre destination (1 à ${Math.min(5, suggestions.length)})`;
-      responseMessage = message;
-      
-    } else {
-      // Aucun lieu proche trouvé
-      await saveSession(clientPhone, {
-        ...session,
-        positionClient: `POINT(${longitude} ${latitude})`,
-        etat: 'position_recue'
-      });
-      
-      responseMessage = `📍 Position reçue!
-
-🤔 Aucun lieu reconnu près de votre position.
-
-🔍 **Tapez votre destination:**
-• Nom du quartier (ex: Madina, Kaloum)
-• Lieu précis (ex: Aéroport, Université)
-• Adresse approximative`;
-    }
-
-  } else if (session.etat === 'ia_attente_gps' && !hasLocation) {
-    // 🧠 HANDLER IA - État ia_attente_gps avec message texte (selon PLAN_FINAL_WORKFLOWS_DETAILLES.md)
-    console.log(`🧠 [IA_TEXT] État ia_attente_gps, message texte reçu: "${messageText}"`);
-    
-    // L'utilisateur envoie un message texte au lieu du GPS
-    // → Possibilité de modifier la destination ou demander aide
-    
-    if (messageText.toLowerCase().includes('changer') || messageText.toLowerCase().includes('modifier')) {
-      // Changer la destination
-      await saveSession(clientPhone, {
-        ...session,
-        destinationNom: null,
-        etat: session.vehicleType ? 'vehicule_choisi' : 'initial'
-      });
-      
-      responseMessage = `🔄 **CHANGEMENT DE DESTINATION**
-
-🔍 **Quelle est votre nouvelle destination ?**
-• Tapez le nom du lieu où vous voulez aller
-• Ou tapez "près" pour voir les destinations proches`;
-      
-    } else if (messageText.toLowerCase().includes('aide') || messageText.toLowerCase() === '?') {
-      // Aide pour partager GPS
-      responseMessage = `📍 **AIDE - PARTAGE DE POSITION**
-━━━━━━━━━━━━━━━━━━━━━
-
-📱 **Comment partager votre position:**
-
-1️⃣ Cliquez sur l'icône **trombone** (📎)
-2️⃣ Sélectionnez "**Localisation**"  
-3️⃣ Confirmer le partage
-
-⚠️ **Important:** Ne pas utiliser "Localisation en direct"
-
-🗺️ Alternative: tapez "changer" pour modifier la destination`;
-      
-    } else {
-      // Traiter le message comme une potentielle nouvelle destination
-      console.log(`🧠 [IA_TEXT] Possible nouvelle destination: "${messageText}"`);
-      
-      // Essayer de chercher cette destination
-      const destinations = await searchLocation(messageText, SUPABASE_URL, workingApiKey);
-      
-      if (destinations && destinations.length > 0) {
-        // Destination trouvée → Mettre à jour la session
-        await saveSession(clientPhone, {
-          ...session,
-          destinationNom: destinations[0].nom,
-          etat: 'ia_attente_gps' // Rester dans le même état
-        });
-        
-        responseMessage = `✅ **DESTINATION MISE À JOUR**
-
-📍 Nouvelle destination: **${destinations[0].nom}**
-
-📍 **MAINTENANT, PARTAGEZ VOTRE POSITION**
-• 📱 Cliquer sur l'icône trombone (📎)
-• 📍 Sélectionner "Localisation"
-• 🎯 Confirmer le partage`;
-        
-      } else {
-        // Destination non trouvée
-        responseMessage = `❌ Destination "${messageText}" non trouvée.
-
-🔍 **Options:**
-• Tapez un autre nom de lieu
-• Tapez "aide" pour l'aide GPS
-• Tapez "changer" pour recommencer
-
-📍 **En attente de votre position GPS pour:**
-${session.destinationNom}`;
-      }
-    }
-
   } else if (hasLocation) {
     // PRIORITÉ: Traiter d'abord les positions GPS
     console.log(`🚨 DEBUG - ENTRÉE DANS BLOC hasLocation`);
@@ -2591,7 +2173,7 @@ ${session.destinationNom}`;
           ...session,
           departNom: departName,
           departPosition: `POINT(${lon} ${lat})`,
-          etat: 'en_attente_destination_tierce'  // Transition vers état attente destination
+          etat: 'depart_autre_personne'  // Transition vers état standard
         });
         
         responseMessage = `✅ **LIEU DE DÉPART CONFIRMÉ**
@@ -2605,7 +2187,7 @@ ${session.destinationNom}`;
       }
       
     // 🆕 VÉRIFIER SI C'EST UNE DESTINATION GPS (position_recue = attente destination)  
-    } else if ((session.etat === 'position_recue' || session.etat === 'position_recue_planifiee' || session.etat === 'position_recue_avec_suggestions' || session.etat === 'depart_autre_personne' || session.etat === 'en_attente_destination_tierce') && session.vehicleType) {
+    } else if ((session.etat === 'position_recue' || session.etat === 'position_recue_planifiee' || session.etat === 'position_recue_avec_suggestions' || session.etat === 'depart_autre_personne') && session.vehicleType) {
       // 🎯 GPS COMME DESTINATION
       console.log(`📍 GPS reçu comme DESTINATION dans état ${session.etat}`);
       
@@ -2649,7 +2231,7 @@ Veuillez réessayer ou tapez le nom de votre destination.`;
         
         // Calculer distance et prix selon le type de réservation
         let distanceKm1;
-        if (session.etat === 'depart_autre_personne' || session.etat === 'en_attente_destination_tierce') {
+        if (session.etat === 'depart_autre_personne') {
           // Réservation pour quelqu'un d'autre : distance depuis le lieu de départ défini
           if (session.departPosition) {
             const departCoords = await getCoordinatesFromAddress(session.departPosition);
@@ -2674,14 +2256,14 @@ Veuillez réessayer ou tapez le nom de votre destination.`;
           distanceKm: distanceKm1,
           prixEstime: prixInfo1.prix_total,
           etat: session.etat === 'position_recue_planifiee' ? 'prix_calcule_planifie' : 
-                (session.etat === 'depart_autre_personne' || session.etat === 'en_attente_destination_tierce') ? 'prix_calcule_tierce' : 'prix_calcule'
+                session.etat === 'depart_autre_personne' ? 'prix_calcule_tierce' : 'prix_calcule'
         });
         
         const temporalInfo = session.temporalPlanning ? 
           `📅 Date: ${session.plannedDate} à ${session.plannedHour}:${(session.plannedMinute || 0).toString().padStart(2, '0')}\n` : '';
         
         // Message personnalisé UNIQUEMENT pour réservation tierce (état exact)
-        if ((session.etat === 'depart_autre_personne' || session.etat === 'en_attente_destination_tierce') && session.departNom && !session.temporalPlanning) {
+        if (session.etat === 'depart_autre_personne' && session.departNom && !session.temporalPlanning) {
           responseMessage = `📍 **RÉSUMÉ RÉSERVATION TIERCE**
 
 ${temporalInfo}🚗 Type: ${session.vehicleType.toUpperCase()}
@@ -2902,9 +2484,7 @@ Pour commencer: écrivez 'taxi'`;
           } else if (session.destinationNom && session.destinationNom !== 'auto_detect') {
             // ✅ NOUVEAU: Destination déjà connue (extraite par IA) - Passer directement au calcul
             console.log(`🤖 [IA-WORKFLOW] Destination IA trouvée: "${session.destinationNom}", passage direct au calcul`);
-            // 🔧 CORRECTIF AFFICHAGE - Date par défaut si null
-            const displayDate = session.plannedDate || "Aujourd'hui";
-            const temporalInfo = session.temporalPlanning ? `📅 **PLANIFIÉ:** ${displayDate} à ${session.plannedHour}h${(session.plannedMinute ?? 0).toString().padStart(2, '0')}\n` : '';
+            const temporalInfo = session.temporalPlanning ? `📅 **PLANIFIÉ:** ${session.plannedDate} à ${session.plannedHour}h${(session.plannedMinute ?? 0).toString().padStart(2, '0')}\n` : '';
             // Rechercher l'adresse extraite par IA
             const adressesIA = await searchAdresse(session.destinationNom);
             // 🔍 DEBUG - Analyser le format de retour
@@ -2968,9 +2548,7 @@ Tapez le nom exact de votre destination:`;
             });
             
             const suggestionsText = suggestions.length > 0 ? suggestions.map((addr, index)=>`• ${index + 1}️⃣ ${addr.nom} (${addr.ville})`).join('\n') : `• CHU Donka (Conakry)\n• Pharmacie Donka (Conakry)\n• Madina Centre (Conakry)`;
-            // 🔧 CORRECTIF AFFICHAGE - Date par défaut si null
-            const displayDate = session.plannedDate || "Aujourd'hui";
-            const temporalInfo = session.temporalPlanning ? `📅 **PLANIFIÉ:** ${displayDate} à ${session.plannedHour}h\n` : '';
+            const temporalInfo = session.temporalPlanning ? `📅 **PLANIFIÉ:** ${session.plannedDate} à ${session.plannedHour}h\n` : '';
             responseMessage = `📍 Position reçue!
 ✅ ${conducteursProches.length} conducteur(s) ${session.vehicleType.toUpperCase()} disponible(s) à proximité!
 
@@ -3059,14 +2637,8 @@ ${temporalInfo}
         if (suggestions.length === 1) {
           // Un seul résultat, sélection automatique
           const adresse = suggestions[0];
-          let distanceKm;
-          if (session.etat === 'en_attente_destination_tierce' && session.departPosition) {
-            const departCoords = await getCoordinatesFromAddress(session.departPosition);
-            distanceKm = calculateDistance(departCoords.latitude, departCoords.longitude, adresse.latitude, adresse.longitude);
-          } else {
-            const clientCoords = await getClientCoordinates(normalizePhone(from));
-            distanceKm = calculateDistance(clientCoords.latitude, clientCoords.longitude, adresse.latitude, adresse.longitude);
-          }
+          const clientCoords = await getClientCoordinates(normalizePhone(from));
+          const distanceKm = calculateDistance(clientCoords.latitude, clientCoords.longitude, adresse.latitude, adresse.longitude);
           const prixInfo = await calculerPrixCourse(session.vehicleType, distanceKm);
           
           await saveSession(clientPhone, {
@@ -3076,8 +2648,7 @@ ${temporalInfo}
             destinationPosition: `POINT(${adresse.longitude} ${adresse.latitude})`,
             distanceKm: distanceKm,
             prixEstime: prixInfo.prix_total,
-            etat: session.temporalPlanning ? 'prix_calcule_planifie' : 
-                  (session.etat === 'en_attente_destination_tierce') ? 'prix_calcule_tierce' : 'prix_calcule'
+            etat: session.temporalPlanning ? 'prix_calcule_planifie' : 'prix_calcule'
           });
           
           responseMessage = `✅ **DESTINATION CONFIRMÉE**
@@ -3139,7 +2710,7 @@ Ou tapez 'annuler' pour recommencer.`;
           departNom: departChoisi.nom,
           departId: departChoisi.id,
           departPosition: `POINT(${departChoisi.longitude} ${departChoisi.latitude})`,
-          etat: 'en_attente_destination_tierce'
+          etat: 'depart_autre_personne'
         });
         
         responseMessage = `✅ **LIEU DE DÉPART CONFIRMÉ**
@@ -3160,7 +2731,7 @@ Ou tapez 'annuler' pour recommencer.`;
             departNom: result.nom,
             departId: result.id,
             departPosition: `POINT(${result.longitude} ${result.latitude})`,
-            etat: 'en_attente_destination_tierce'
+            etat: 'depart_autre_personne'
           });
           
           responseMessage = `✅ **LIEU DE DÉPART CONFIRMÉ**
@@ -3193,7 +2764,7 @@ ${suggestionsText}
       console.error('❌ Erreur sélection suggestions départ:', error);
       responseMessage = `❌ Erreur technique. Retapez votre lieu de départ.`;
     }
-  } else if ((session.etat === 'position_recue' || session.etat === 'position_recue_planifiee' || session.etat === 'en_attente_destination_tierce') && !hasLocation && !['oui', 'non', 'confirmer', 'annuler'].includes(messageText.toLowerCase())) {
+  } else if ((session.etat === 'position_recue' || session.etat === 'position_recue_planifiee') && !hasLocation && !['oui', 'non', 'confirmer', 'annuler'].includes(messageText.toLowerCase())) {
     // 🔍 TEXTE: Recherche destination (code existant intact)
     console.log(`🔍 Recherche destination: "${body}"`);
     const resultats = await searchAdresse(body);
@@ -3216,14 +2787,8 @@ Ou tapez 'annuler' pour recommencer.`;
       const adresse1 = suggestions[0];
       console.log(`✅ Destination unique trouvée: ${adresse1.nom}`);
       // Calculer distance et prix
-      let distanceKm1;
-      if (session.etat === 'en_attente_destination_tierce' && session.departPosition) {
-        const departCoords = await getCoordinatesFromAddress(session.departPosition);
-        distanceKm1 = calculateDistance(departCoords.latitude, departCoords.longitude, adresse1.latitude, adresse1.longitude);
-      } else {
-        const clientCoords = await getClientCoordinates(normalizePhone(from));
-        distanceKm1 = calculateDistance(clientCoords.latitude, clientCoords.longitude, adresse1.latitude, adresse1.longitude);
-      }
+      const clientCoords = await getClientCoordinates(normalizePhone(from));
+      const distanceKm1 = calculateDistance(clientCoords.latitude, clientCoords.longitude, adresse1.latitude, adresse1.longitude);
       const prixInfo1 = await calculerPrixCourse(session.vehicleType, distanceKm1);
       // CORRECTION: Ajouter le responseMessage manquant pour résultat unique
       await saveSession(clientPhone, {
@@ -3233,8 +2798,7 @@ Ou tapez 'annuler' pour recommencer.`;
         destinationPosition: `POINT(${adresse1.longitude} ${adresse1.latitude})`,
         distanceKm: distanceKm1,
         prixEstime: prixInfo1.prix_total,
-        etat: session.etat === 'position_recue_planifiee' ? 'prix_calcule_planifie' : 
-              (session.etat === 'en_attente_destination_tierce') ? 'prix_calcule_tierce' : 'prix_calcule'
+        etat: session.etat === 'position_recue_planifiee' ? 'prix_calcule_planifie' : 'prix_calcule'
       });
       const temporalInfo = session.temporalPlanning ? `📅 ${session.temporalPlanning ? `Date: ${session.plannedDate} à ${session.plannedHour}:${(session.plannedMinute || 0).toString().padStart(2, '0')}` : 'Réservation: Immédiat'}\n` : '';
       responseMessage = `📍 **RÉSUMÉ DE VOTRE COURSE**
@@ -3276,9 +2840,7 @@ ${suggestions.map((lieu, i)=>`${i + 1}. **${lieu.nom}** (${lieu.ville || 'Conakr
         prixEstime: prixInfo.prix_total,
         etat: nouvelEtatPrix
       });
-      // 🔧 CORRECTIF AFFICHAGE - Date par défaut si null
-      const displayDate = session.plannedDate || "Aujourd'hui";
-      const temporalInfo = session.temporalPlanning ? `📅 **PLANIFIÉ:** ${displayDate} à ${session.plannedHour}h\n` : '';
+      const temporalInfo = session.temporalPlanning ? `📅 **PLANIFIÉ:** ${session.plannedDate} à ${session.plannedHour}h\n` : '';
       responseMessage = `📍 **RÉSUMÉ DE VOTRE COURSE**
 
 ${temporalInfo}🚗 Type: ${session.vehicleType.toUpperCase()}
@@ -3292,73 +2854,7 @@ Confirmez-vous cette réservation ?
 • Répondez 'oui' pour confirmer
 • Répondez 'non' pour annuler`;
     }
-  // CORRECTION BUG: Handler destination après choix véhicule (TEXTE SEULEMENT)
-  } else if (session.etat === 'vehicule_choisi' && !hasLocation && messageText.trim() !== '') {
-    // 🎯 L'utilisateur saisit sa DESTINATION après avoir choisi le véhicule
-    console.log(`📝 DEBUG - WORKFLOW TEXTE - État vehicule_choisi + texte destination: "${messageText}"`);
-    
-    const suggestions = await searchAdresse(messageText);
-    
-    if (!suggestions || (Array.isArray(suggestions) && suggestions.length === 0)) {
-      // Aucun résultat - suggestions intelligentes
-      const suggestionsList = await getSuggestionsIntelligentes(messageText, 5);
-      const suggestionsText = suggestionsList.map((s, i) => `${i + 1}️⃣ ${s.nom}`).join('\n');
-      responseMessage = `❓ Destination non trouvée: "${messageText}"
-
-Suggestions proches:
-${suggestionsText}
-
-Tapez le numéro de votre choix ou essayez un autre nom de destination`;
-      
-    } else if (Array.isArray(suggestions) && suggestions.length > 1) {
-      // PLUSIEURS DESTINATIONS - État choix_destination_multiple
-      await saveSession(clientPhone, {
-        ...session,
-        suggestionsDestination: JSON.stringify(suggestions),
-        etat: 'choix_destination_multiple'
-      });
-      responseMessage = `🎯 **Plusieurs destinations trouvées pour "${messageText}"**
-
-Choisissez votre destination :
-
-${suggestions.map((lieu, i) => `${i + 1}. **${lieu.nom}** (${lieu.ville || 'Conakry'})`).join('\n')}
-
-📝 Tapez le numéro de votre choix (1-${suggestions.length})`;
-      
-    } else {
-      // UNE SEULE DESTINATION TROUVÉE - Calculer prix
-      const adresse = Array.isArray(suggestions) ? suggestions[0] : suggestions;
-      const clientPosition = await getClientCoordinates(normalizePhone(clientPhone));
-      const distanceKm = calculateDistance(clientPosition.lat, clientPosition.lon, adresse.latitude, adresse.longitude);
-      const prixInfo = calculatePrice(session.vehicleType, distanceKm);
-      
-      const nouvelEtatPrix = session.temporalPlanning ? 'prix_calcule_planifie' : 'prix_calcule';
-      await saveSession(clientPhone, {
-        ...session,
-        destinationNom: adresse.nom,
-        destinationId: adresse.id,
-        destinationPosition: `POINT(${adresse.longitude} ${adresse.latitude})`,
-        distanceKm: distanceKm,
-        prixEstime: prixInfo.prix_total,
-        etat: nouvelEtatPrix
-      });
-      // 🔧 CORRECTIF AFFICHAGE - Date par défaut si null
-      const displayDate = session.plannedDate || "Aujourd'hui";
-      const temporalInfo = session.temporalPlanning ? `📅 **PLANIFIÉ:** ${displayDate} à ${session.plannedHour}h\n` : '';
-      responseMessage = `📍 **RÉSUMÉ DE VOTRE COURSE**
-
-${temporalInfo}🚗 Type: ${session.vehicleType.toUpperCase()}
-📍 Destination: ${adresse.nom}
-📏 Distance: ${distanceKm.toFixed(1)} km
-💰 **Prix estimé: ${prixInfo.prix_total.toLocaleString('fr-FR')} GNF**
-
-ℹ️ Tarif appliqué: ${prixInfo.prix_par_km} GNF/km
-
-Confirmez-vous cette réservation ?
-• Répondez 'oui' pour confirmer
-• Répondez 'non' pour annuler`;
-    }
-  // EXISTANT: Handler recherche lieu départ pour réservation tierce (TEXTE SEULEMENT)
+  // NOUVEAU: Handler recherche lieu départ pour réservation tierce (TEXTE SEULEMENT)
   } else if (session.etat === 'depart_autre_personne' && !hasLocation && messageText.trim() !== '') {
     const lieuxDepart = await searchAdresse(messageText);
     // 🔧 LOGIQUE SIMPLE: Réutiliser la logique existante (ligne 2392-2393)
@@ -3603,94 +3099,6 @@ Confirmez-vous cette réservation ?
 • Répondez 'non' pour annuler`;
       }
     }
-  } else if (session.etat === 'confirmation_annulation' && (messageText === 'oui' || messageText === 'non')) {
-    if (messageText === 'oui') {
-      // Confirmer l'annulation
-      console.log(`✅ Annulation confirmée pour ${clientPhone}`);
-      console.log(`🔍 DEBUG - session.reservationToCancel: ${session.reservationToCancel}`);
-      
-      // Annuler la réservation
-      const updateResponse = await fetchWithRetry(
-        `${SUPABASE_URL}/rest/v1/reservations?id=eq.${session.reservationToCancel}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${workingApiKey}`,
-            'apikey': workingApiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            statut: 'canceled',
-            updated_at: new Date().toISOString(),
-            cancellation_notified_at: new Date().toISOString()
-          })
-        }
-      );
-      
-      console.log(`🔍 DEBUG - updateResponse.ok: ${updateResponse.ok}`);
-      console.log(`🔍 DEBUG - updateResponse.status: ${updateResponse.status}`);
-      if (!updateResponse.ok) {
-        const errorText = await updateResponse.text();
-        console.log(`❌ DEBUG - Erreur annulation: ${errorText}`);
-      } else {
-        console.log(`✅ DEBUG - Réservation annulée avec succès`);
-      }
-      
-      // Notifier le conducteur si assigné
-      if (session.conducteurToNotify) {
-        // Récupérer infos conducteur
-        const conducteurResponse = await fetchWithRetry(
-          `${SUPABASE_URL}/rest/v1/conducteurs?id=eq.${session.conducteurToNotify}&select=telephone`,
-          {
-            headers: {
-              'Authorization': `Bearer ${workingApiKey}`,
-              'apikey': workingApiKey,
-            }
-          }
-        );
-        
-        const conducteurs = await conducteurResponse.json();
-        if (conducteurs.length > 0) {
-          const message = `🚫 **COURSE ANNULÉE PAR CLIENT**
-
-La réservation a été annulée par le client.
-Vous êtes maintenant disponible pour d'autres courses.`;
-          
-          await sendGreenAPIMessage(conducteurs[0].telephone, message);
-        }
-      }
-      
-      // Nettoyer la session
-      await fetchWithRetry(`${SUPABASE_URL}/rest/v1/sessions?client_phone=eq.${encodeURIComponent(clientPhone)}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${workingApiKey}`,
-          'apikey': workingApiKey,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      responseMessage = `✅ **RÉSERVATION ANNULÉE**
-${session.conducteurToNotify ? '📨 Conducteur prévenu.' : ''}
-
-Pour une nouvelle réservation: tapez 'taxi'`;
-      
-    } else {
-      // Annuler l'annulation - retour état initial
-      await fetchWithRetry(`${SUPABASE_URL}/rest/v1/sessions?client_phone=eq.${encodeURIComponent(clientPhone)}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${workingApiKey}`,
-          'apikey': workingApiKey,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      responseMessage = `👍 **RÉSERVATION MAINTENUE**
-
-Votre réservation reste active.
-Pour l'annuler plus tard, tapez 'annuler'.`;
-    }
   } else if ((messageText === 'oui' || messageText === 'confirmer') && (session.etat === 'prix_calcule' || session.etat === 'prix_calcule_planifie' || session.etat === 'prix_calcule_tiers' || session.etat === 'prix_calcule_tierce')) {
     console.log(`✅ [CONFIRMATION] Traitement "oui" détecté avec état: ${session.etat}`);
     // 💡 CONSEIL MARCHE À PIED pour prix exactement 5000 GNF
@@ -3733,7 +3141,7 @@ Pour recommencer: écrivez 'taxi'`;
         statut: session.temporalPlanning ? 'scheduled' : 'pending',
         // ✅ RÉSOLU: Statut 'scheduled' maintenant autorisé par contrainte CHECK
         // ✅ NOUVEAU: Données temporelles pour réservations planifiées
-        date_reservation: session.plannedDate,
+        date_reservation: session.plannedDate || null,
         heure_reservation: session.plannedHour || null,
         minute_reservation: session.plannedMinute || null
       };
@@ -4266,6 +3674,7 @@ Pour recommencer: écrivez 'taxi'`;
           });
           if (updateResponse.ok) {
             responseMessage = `✅ **RÉSERVATION ANNULÉE**
+
 Votre réservation en attente a été annulée avec succès.
 
 Pour une nouvelle demande: écrivez 'taxi'`;
@@ -4327,43 +3736,6 @@ Quel type de taxi souhaitez-vous ?
 • 'voiture' - Transport en voiture
 
 (Répondez par 'moto' ou 'voiture')`;
-  // ═══════════════════════════════════════════════════════════════
-  // 🛡️ ZONE IA V3 - NE PAS ÉCRASER LORS SYNCHRO V2→V3
-  // ═══════════════════════════════════════════════════════════════
-  // 🧠 DÉTECTION IA GLOBALE V3 - Intercepter messages complexes avant else final
-  } else if (shouldUseAIAnalysis && await shouldUseAIAnalysis(messageText)) {
-    console.log(`🧠 [IA-GLOBAL-V3] Message complexe détecté sans "taxi": "${messageText}"`);
-    
-    // 🤖 Activer l'IA V3 pour traitement complet
-    const aiResult = await handleComplexTextMessage(messageText, clientPhone, session);
-    
-    if (aiResult.handled) {
-      console.log(`✅ [IA-GLOBAL-V3] Message traité avec succès par l'IA`);
-      
-      // Multi-provider response pour IA globale
-      if (WHATSAPP_PROVIDER === 'greenapi') {
-        const messageSent = await sendGreenAPIMessage(from, aiResult.response!);
-        return new Response('OK', { status: 200, headers: corsHeaders });
-      } else {
-        return new Response(aiResult.response, {
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-        });
-      }
-    } else {
-      console.log(`⚠️ [IA-GLOBAL-V3] IA n'a pas pu traiter, message d'aide`);
-      responseMessage = `🤖 **Message complexe détecté**
-
-💡 Pour une réservation précise, commencez par :
-• **"taxi"** → Puis votre demande
-
-🎯 Exemple : "taxi" puis "je veux aller à l'aéroport demain à 07h"
-
-📞 Cette méthode active toutes nos fonctionnalités IA !`;
-    }
-  // ═══════════════════════════════════════════════════════════════
-  // 🛡️ FIN ZONE IA V3 - PROTÉGÉE CONTRE ÉCRASEMENT
-  // ═══════════════════════════════════════════════════════════════
-
   } else {
     // Message de bienvenue par défaut
     console.log(`🔴 DEBUG - ARRIVÉE DANS LE ELSE FINAL`);
@@ -4401,7 +3773,6 @@ _Le transport à votre portée_
     const messageSent = await sendGreenAPIMessage(from, responseMessage);
     if (messageSent) {
       console.log(`✅ Message envoyé via Green API`);
-      logRequestTiming('STANDARD WORKFLOW (Green API)');
       // Retourner une réponse vide pour Green API (webhook ne nécessite pas de réponse)
       return new Response('OK', {
         status: 200,
@@ -4556,7 +3927,7 @@ Réessayez dans quelques secondes ou utilisez le système texte:
 async function cancelPendingReservations(clientPhone) {
   try {
     console.log(`🚫 Tentative annulation réservations actives pour: ${clientPhone}`);
-    // Mettre à jour toutes les réservations pending, accepted et scheduled vers canceled (JAMAIS completed)
+    // Mettre à jour toutes les réservations pending, accepted et scheduled vers canceled
     const response = await fetchWithRetry(`${SUPABASE_URL}/rest/v1/reservations?client_phone=eq.${encodeURIComponent(clientPhone)}&or=(statut.eq.pending,statut.eq.accepted,statut.eq.scheduled)`, {
       method: 'PATCH',
       headers: {
@@ -4600,38 +3971,9 @@ async function cancelPendingReservations(clientPhone) {
 // =================================================================
 // POINT D'ENTRÉE PRINCIPAL MODULAIRE
 // =================================================================
-// ═══════════════════════════════════════════════════════════════
-// 🛡️ ZONE IA V3 - NE PAS ÉCRASER LORS SYNCHRO V2→V3
-// ═══════════════════════════════════════════════════════════════
-// ⏱️ HELPER TIMING GLOBAL - Log automatique avant retour
-let REQUEST_START_TIME: number;
-let REQUEST_ID: string;
-
-function logRequestTiming(action: string, details?: string) {
-  const totalTime = Date.now() - REQUEST_START_TIME;
-  const detailStr = details ? ` - ${details}` : '';
-  console.log(`🕐 [PERF-${REQUEST_ID}] ${action}: ${totalTime}ms${detailStr}`);
-  
-  // 🚨 Alertes critiques
-  if (totalTime > 4000) {
-    console.log(`🚨 [CRITICAL] REQUEST TOO SLOW: ${totalTime}ms`);
-  } else if (totalTime > 2000) {
-    console.log(`🐌 [WARNING] REQUEST SLOW: ${totalTime}ms`);
-  }
-}
-// ═══════════════════════════════════════════════════════════════
-// 🛡️ FIN ZONE IA V3 - PROTÉGÉE CONTRE ÉCRASEMENT
-// ═══════════════════════════════════════════════════════════════
-
 serve(async (req)=>{
-  // ⏰ INIT TIMING
-  REQUEST_START_TIME = Date.now();
-  REQUEST_ID = Math.random().toString(36).substring(7);
-  console.log(`⏰ [PERF-${REQUEST_ID}] REQUEST START: ${new Date().toISOString()}`);
-  
   // CORS pour toutes les méthodes
   if (req.method === 'OPTIONS') {
-    logRequestTiming('CORS OPTIONS');
     return new Response('ok', {
       status: 200,
       headers: corsHeaders
@@ -5072,25 +4414,8 @@ async function saveClientAddress(clientPhone: string, addressName: string, posit
       return false;
     }
     
-    // ═══════════════════════════════════════════════════════════════
-    // 🛡️ ZONE IA V3 - NE PAS ÉCRASER LORS SYNCHRO V2→V3
-    // ═══════════════════════════════════════════════════════════════
-    // 🔧 CORRECTION COSMÉTIQUE - Protection parsing JSON vide
-    try {
-      const responseText = await response.text();
-      if (responseText && responseText.trim() !== '') {
-        const result = JSON.parse(responseText);
-        console.log(`💾 DEBUG saveClientAddress - Result:`, JSON.stringify(result));
-      } else {
-        console.log(`💾 DEBUG saveClientAddress - Réponse vide (OK pour INSERT/UPDATE)`);
-      }
-    } catch (jsonError) {
-      console.log(`⚠️ Parsing JSON non critique: ${jsonError.message}`);
-    }
-    // ═══════════════════════════════════════════════════════════════
-    // 🛡️ FIN ZONE IA V3 - PROTÉGÉE CONTRE ÉCRASEMENT
-    // ═══════════════════════════════════════════════════════════════
-    
+    const result = await response.json();
+    console.log(`💾 DEBUG saveClientAddress - Result:`, JSON.stringify(result));
     console.log(`✅ Adresse "${addressName}" enregistrée pour ${clientPhone}`);
     return true;
   } catch (error) {

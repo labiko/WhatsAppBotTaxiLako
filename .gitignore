@@ -1,6 +1,15 @@
 # Dependencies
 node_modules/
 
+# API Keys et secrets
+.env
+.env.local
+.env.production
+*openai*.key
+*api*.key
+*.secret
+config/secrets.*
+
 # Fichiers volumineux (données) uniquement
 *.csv
 *.tsv

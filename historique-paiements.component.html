@@ -1,0 +1,236 @@
+<div class="historique-paiements-container">
+
+  <!-- Header avec statistiques -->
+  <div class="stats-section" *ngIf="!loadingStats">
+    <mat-card class="stats-card">
+      <mat-card-header>
+        <mat-card-title>📊 Statistiques Historique</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value">{{ statistics.totalPaiements }}</span>
+            <span class="stat-label">Total Paiements</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ formatAmount(statistics.montantTotal) }}</span>
+            <span class="stat-label">Montant Total</span>
+          </div>
+          <div class="stat-item" *ngIf="statistics.dernierpaiement">
+            <span class="stat-value">{{ statistics.dernierpaiement.date_formatee }}</span>
+            <span class="stat-label">Dernier Paiement</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Section filtres -->
+  <mat-expansion-panel class="filters-panel">
+    <mat-expansion-panel-header>
+      <mat-panel-title>
+        🔍 Filtres de recherche
+      </mat-panel-title>
+      <mat-panel-description>
+        Affiner la recherche dans l'historique
+      </mat-panel-description>
+    </mat-expansion-panel-header>
+
+    <form [formGroup]="filterForm" class="filters-form">
+      <div class="filters-row">
+        <!-- Entreprise -->
+        <mat-form-field appearance="outline">
+          <mat-label>Entreprise</mat-label>
+          <mat-select formControlName="entreprise_id">
+            <mat-option value="">Toutes les entreprises</mat-option>
+            <mat-option *ngFor="let entreprise of entreprisesList" [value]="entreprise.id">
+              {{ entreprise.nom }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Statut -->
+        <mat-form-field appearance="outline">
+          <mat-label>Statut</mat-label>
+          <mat-select formControlName="statut">
+            <mat-option value="">Tous les statuts</mat-option>
+            <mat-option value="completed">Confirmé</mat-option>
+            <mat-option value="pending">En attente</mat-option>
+            <mat-option value="failed">Échec</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Méthode de paiement -->
+        <mat-form-field appearance="outline">
+          <mat-label>Méthode Paiement</mat-label>
+          <mat-select formControlName="methode_paiement">
+            <mat-option value="">Toutes les méthodes</mat-option>
+            <mat-option *ngFor="let methode of methodesPaiementList" [value]="methode">
+              {{ methode }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="filters-row">
+        <!-- Période -->
+        <mat-form-field appearance="outline">
+          <mat-label>Date début</mat-label>
+          <input matInput [matDatepicker]="pickerDebut" formControlName="date_debut">
+          <mat-datepicker-toggle matSuffix [for]="pickerDebut"></mat-datepicker-toggle>
+          <mat-datepicker #pickerDebut></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Date fin</mat-label>
+          <input matInput [matDatepicker]="pickerFin" formControlName="date_fin">
+          <mat-datepicker-toggle matSuffix [for]="pickerFin"></mat-datepicker-toggle>
+          <mat-datepicker #pickerFin></mat-datepicker>
+        </mat-form-field>
+
+        <!-- Montants -->
+        <mat-form-field appearance="outline">
+          <mat-label>Montant min</mat-label>
+          <input matInput type="number" formControlName="montant_min" placeholder="0">
+          <span matSuffix>GNF</span>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Montant max</mat-label>
+          <input matInput type="number" formControlName="montant_max" placeholder="999999999">
+          <span matSuffix>GNF</span>
+        </mat-form-field>
+      </div>
+
+      <div class="filters-actions">
+        <button mat-raised-button color="warn" type="button" (click)="clearFilters()">
+          🧹 Effacer les filtres
+        </button>
+        <button mat-raised-button color="accent" type="button" (click)="exportToCsv()" [disabled]="loading">
+          📊 Exporter CSV
+        </button>
+      </div>
+    </form>
+  </mat-expansion-panel>
+
+  <!-- Actions et refresh -->
+  <div class="actions-bar">
+    <div class="actions-left">
+      <button mat-raised-button color="primary" (click)="refresh()" [disabled]="loading">
+        🔄 Actualiser
+      </button>
+    </div>
+    <div class="actions-right">
+      <span class="results-count">
+        {{ totalElements }} paiement(s) trouvé(s)
+      </span>
+    </div>
+  </div>
+
+  <!-- Table des résultats -->
+  <div class="table-container">
+    <mat-table [dataSource]="dataSource" class="historique-table" matSort>
+
+      <!-- Colonne Date -->
+      <ng-container matColumnDef="date_formatee">
+        <mat-header-cell *matHeaderCellDef mat-sort-header>📅 Date</mat-header-cell>
+        <mat-cell *matCellDef="let paiement">
+          <strong>{{ paiement.date_formatee }}</strong>
+        </mat-cell>
+      </ng-container>
+
+      <!-- Colonne Entreprise -->
+      <ng-container matColumnDef="entreprise_nom">
+        <mat-header-cell *matHeaderCellDef mat-sort-header>🏢 Entreprise</mat-header-cell>
+        <mat-cell *matCellDef="let paiement">
+          <span class="entreprise-name">{{ paiement.entreprise_nom }}</span>
+        </mat-cell>
+      </ng-container>
+
+      <!-- Colonne Montant -->
+      <ng-container matColumnDef="montant_paye">
+        <mat-header-cell *matHeaderCellDef mat-sort-header>💰 Montant</mat-header-cell>
+        <mat-cell *matCellDef="let paiement">
+          <span class="montant-value">{{ formatAmount(paiement.montant_paye) }}</span>
+        </mat-cell>
+      </ng-container>
+
+      <!-- Colonne Méthode -->
+      <ng-container matColumnDef="methode_paiement">
+        <mat-header-cell *matHeaderCellDef mat-sort-header>💳 Méthode</mat-header-cell>
+        <mat-cell *matCellDef="let paiement">
+          <mat-chip class="methode-chip">{{ paiement.methode_paiement }}</mat-chip>
+        </mat-cell>
+      </ng-container>
+
+      <!-- Colonne Référence -->
+      <ng-container matColumnDef="reference_paiement">
+        <mat-header-cell *matHeaderCellDef>🔗 Référence</mat-header-cell>
+        <mat-cell *matCellDef="let paiement">
+          <span class="reference-text">{{ paiement.reference_paiement || '-' }}</span>
+        </mat-cell>
+      </ng-container>
+
+      <!-- Colonne Statut -->
+      <ng-container matColumnDef="statut">
+        <mat-header-cell *matHeaderCellDef mat-sort-header>📊 Statut</mat-header-cell>
+        <mat-cell *matCellDef="let paiement">
+          <span class="statut-badge" [ngClass]="getStatutBadgeClass(paiement.statut)">
+            {{ paiement.statut }}
+          </span>
+        </mat-cell>
+      </ng-container>
+
+      <!-- Colonne Variation Balance -->
+      <ng-container matColumnDef="variation_balance">
+        <mat-header-cell *matHeaderCellDef mat-sort-header>📈 Variation</mat-header-cell>
+        <mat-cell *matCellDef="let paiement">
+          <span class="variation-badge" [ngClass]="getVariationBadgeClass(paiement.variation_balance)">
+            {{ paiement.variation_balance > 0 ? '+' : '' }}{{ formatAmount(paiement.variation_balance) }}
+          </span>
+        </mat-cell>
+      </ng-container>
+
+      <!-- Colonne Actions -->
+      <ng-container matColumnDef="actions">
+        <mat-header-cell *matHeaderCellDef>⚙️ Actions</mat-header-cell>
+        <mat-cell *matCellDef="let paiement">
+          <button mat-icon-button (click)="viewPaiementDetails(paiement)" matTooltip="Voir détails">
+            <mat-icon>visibility</mat-icon>
+          </button>
+        </mat-cell>
+      </ng-container>
+
+      <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+      <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
+    </mat-table>
+
+    <!-- Loading spinner -->
+    <div class="loading-container" *ngIf="loading">
+      <mat-spinner diameter="50"></mat-spinner>
+      <p>Chargement de l'historique...</p>
+    </div>
+
+    <!-- Message vide -->
+    <div class="empty-state" *ngIf="!loading && dataSource.data.length === 0">
+      <mat-icon class="empty-icon">payment</mat-icon>
+      <h3>Aucun paiement trouvé</h3>
+      <p>Aucun paiement ne correspond aux critères de recherche.</p>
+      <button mat-raised-button color="primary" (click)="clearFilters()">
+        Effacer les filtres
+      </button>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <mat-paginator
+    [length]="totalElements"
+    [pageSize]="pageSize"
+    [pageSizeOptions]="pageSizeOptions"
+    [pageIndex]="pageIndex"
+    (page)="onPageChange($event)"
+    showFirstLastButtons
+    class="historique-paginator">
+  </mat-paginator>
+
+</div>

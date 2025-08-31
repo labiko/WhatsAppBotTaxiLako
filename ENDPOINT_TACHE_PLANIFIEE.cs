@@ -1,3 +1,103 @@
+    /// <summary>
+    /// 🔄 VÉRIFIER ET NOTIFIER LES PAIEMENTS CONFIRMÉS
+    /// URL: /api/CheckPaymentNotifications
+    /// Méthode: GET
+    /// Fréquence recommandée: Chaque minute
+    /// </summary>
+    [HttpGet]
+    [Route("api/CheckPaymentNotifications")]
+    public async Task<ActionResult> CheckPaymentNotifications()
+    {
+        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+        var startTime = DateTime.Now;
+        var logMessages = new List<string>();
+
+        // Configuration depuis Web.config
+        var supabaseUrl = ConfigurationManager.AppSettings["Supabase:Url"];
+        var supabaseKey = ConfigurationManager.AppSettings["Supabase:Key"];
+        
+        if (string.IsNullOrEmpty(supabaseUrl) || string.IsNullOrEmpty(supabaseKey))
+        {
+            return Json(new
+            {
+                success = false,
+                error = "Configuration Supabase manquante dans Web.config",
+                timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+            }, JsonRequestBehavior.AllowGet);
+        }
+
+        try
+        {
+            logMessages.Add($"🔄 [PAYMENT-CHECK] Début vérification paiements - {startTime:HH:mm:ss}");
+
+            using (var httpClient = new HttpClient())
+            {
+                httpClient.DefaultRequestHeaders.Clear();
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
+                httpClient.DefaultRequestHeaders.Add("Content-Type", "application/json");
+
+                // URL du service payment-notification-checker
+                string serviceUrl = $"{supabaseUrl}/functions/v1/payment-notification-checker";
+                logMessages.Add($"📨 [PAYMENT-CHECK] Appel service: {serviceUrl}");
+
+                // Appeler le service
+                var content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+                var response = await httpClient.PostAsync(serviceUrl, content);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                logMessages.Add($"📊 [PAYMENT-CHECK] Status: {response.StatusCode}");
+                logMessages.Add($"📊 [PAYMENT-CHECK] Response: {responseContent}");
+
+                var duration = (DateTime.Now - startTime).TotalSeconds;
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseData = JsonConvert.DeserializeObject<dynamic>(responseContent);
+                    
+                    logMessages.Add($"✅ [PAYMENT-CHECK] Résultat: {responseData?.message}");
+                    logMessages.Add($"📊 [PAYMENT-CHECK] Vérifiés={responseData?.checked}, Notifiés={responseData?.notified}, Échoués={responseData?.failed}");
+
+                    return Json(new
+                    {
+                        success = true,
+                        message = responseData?.message?.ToString() ?? "Vérification terminée",
+                        checked = responseData?.checked ?? 0,
+                        notified = responseData?.notified ?? 0,
+                        failed = responseData?.failed ?? 0,
+                        duration_seconds = duration,
+                        logs = logMessages,
+                        timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                    }, JsonRequestBehavior.AllowGet);
+                }
+                else
+                {
+                    logMessages.Add($"❌ [PAYMENT-CHECK] Erreur: HTTP {response.StatusCode}");
+                    
+                    return Json(new
+                    {
+                        success = false,
+                        error = $"HTTP {response.StatusCode}",
+                        details = responseContent,
+                        logs = logMessages,
+                        timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                    }, JsonRequestBehavior.AllowGet);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logMessages.Add($"❌ [PAYMENT-CHECK] Exception: {ex.Message}");
+
+            return Json(new
+            {
+                success = false,
+                error = ex.Message,
+                logs = logMessages,
+                timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+            }, JsonRequestBehavior.AllowGet);
+        }
+    }
+
     public async Task<ActionResult> ProcessWhatsAppNotifications()
  {
      ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;

@@ -213,6 +213,11 @@ Exemples :
 - "Je veux un taxi pour aller à l'hôpital" → vehicle_type: "voiture", destination: "hôpital"
 - "Taksi motor pr madina" → vehicle_type: "moto", destination: "madina"
 - "je ve taksi voiture pr ale kaloum demen 8h" → vehicle_type: "voiture", destination: "kaloum", temporal.relative: "demain", temporal.time: "08:00"
+- "je voulais me rendre à donka" → vehicle_type: "voiture", destination: "Hôpital Donka", confidence: 0.9
+- "aller à donka" → vehicle_type: "voiture", destination: "Hôpital Donka", confidence: 0.9
+- "donka" → destination: "Hôpital Donka", confidence: 0.8
+- "hopital donka" → destination: "Hôpital Donka", confidence: 0.9
+- "hopital" → destination: "hôpital", confidence: 0.8
 
 Sois tolérant aux fautes d'orthographe. Si pas sûr, mets null.
 `;
@@ -393,6 +398,16 @@ export async function handleComplexTextMessage(
   session: any = null
 ): Promise<{ handled: boolean; response?: string }> {
   
+  // ═══════════════════════════════════════════════════════════════
+  // 🛡️ ZONE IA V3 - NE PAS ÉCRASER LORS SYNCHRO V2→V3
+  // ═══════════════════════════════════════════════════════════════
+  // ⏱️ MONITORING PERFORMANCE IA - Traitement message complexe
+  const iaStartTime = Date.now();
+  console.log(`⏱️ [IA-GPT4] COMPLEX START: "${message}" (${message.length} chars)`);
+  // ═══════════════════════════════════════════════════════════════
+  // 🛡️ FIN ZONE IA V3 - PROTÉGÉE CONTRE ÉCRASEMENT
+  // ═══════════════════════════════════════════════════════════════
+  
   console.log(`🔄 [TEXT-INTELLIGENCE] Traitement message complexe pour ${clientPhone}`);
   
   try {
@@ -411,6 +426,8 @@ export async function handleComplexTextMessage(
     
     // 3. Si données critiques manquantes, demander clarification
     if (!analysis.extractedData?.vehicleType) {
+      const iaDuration = Date.now() - iaStartTime;
+      console.log(`⏱️ [IA-GPT4] CLARIFICATION: ${iaDuration}ms - Missing vehicle type`);
       return {
         handled: true,
         response: "J'ai compris que vous voulez un taxi. Précisez-vous 'moto' ou 'voiture' ?"
@@ -501,6 +518,15 @@ export async function handleComplexTextMessage(
     
     // 5. Générer réponse selon données extraites
     const response = generateSmartResponse(analysis.extractedData);
+    
+    // ⏱️ [TIMING] Fin traitement IA
+    const iaDuration = Date.now() - iaStartTime;
+    console.log(`⏱️ [IA-GPT4] COMPLEX END: ${iaDuration}ms - Confidence: ${analysis.confidence || 'N/A'}`);
+    
+    // 🚨 Alerte si lent
+    if (iaDuration > 3000) {
+      console.log(`🐌 [IA-GPT4] SLOW ALERT: Complex processing took ${iaDuration}ms`);
+    }
     
     return {
       handled: true,
